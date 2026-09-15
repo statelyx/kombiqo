@@ -1,6 +1,6 @@
 # iPhone'da TestFlight hazırlığı
 
-15 Eylül 2026: Apple uygulama kimliği ve App Store Connect kaydı oluşturuldu. Codemagic imzalama profili bağlandı ve ilk gerçek iOS derlemesi başlatıldı. Derlemenin tamamlanması ve TestFlight işleme sonucu ayrıca doğrulanmalıdır.
+15 Eylül 2026: Apple uygulama kimliği ve App Store Connect kaydı oluşturuldu. Codemagic imzalama profili bağlandı. İlk gerçek iOS derlemesi başarıyla tamamlandı ve IPA App Store Connect’e hatasız yüklendi. Apple TestFlight işlemesi yüklemeden sonra devam eder.
 
 - Bundle ID: `com.kombiqo.app`
 - Apple uygulama ID: `6812286879`
@@ -8,6 +8,10 @@
 - Sertifika referansı: `kombiqo-distribution`
 - Profil referansı: `kombiqo-app-store-profile` (Apple adı: Kombiqo App Store)
 - İş akışı: `ios-testflight`, dal: `main`
+- Doğrulanan sürüm: `0.2.0 (4)`, Xcode 26.6
+- Başarılı build: https://codemagic.io/app/6aa90dcbfad5fddd5263af51/build/6aa923293679c04df699559f
+- Test grubu: `Kombiqo Dahili Test`, otomatik dağıtım açık, hesap sahibi eklendi
+- IPA: 10.61 MB; native Swift modülü derlendi. Segmentasyon kalitesi ve cihaz davranışı hâlâ gerçek iPhone testi gerektirir.
 
 İlk hata, profile sahip olmayan bundle ID nedeniyle build başlamadan alınan `No matching profiles found` hatasıydı. Mevcut sertifikayla uygulamaya özel profil oluşturularak çözüldü; MooTycoon'un kimliği veya gizli değişkenleri kopyalanmadı.
 

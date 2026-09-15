@@ -44,3 +44,7 @@ Son doğrulama (15 Eylül 2026): TypeScript kontrolü, 14/14 test, Expo Doctor 2
 ## 0.2 — Fotoğraf stüdyosu
 
 Kamera girişi, iOS 17+ Vision modülü, orijinal/temizlenmiş geçişi, PNG kalıcılığı, askılı fotoğraf sunumu ve marka açılış ekranı eklendi. 17 test, TypeScript, Expo Doctor 21/21 ve tüm platform export işlemleri geçti. Apple autolinking KombiqoCutout modülünü buldu. Swift derlemesi ve gerçek segmentasyon kalitesi TestFlight aşamasında doğrulanacak. Android/web arka plan temizleme, elle maske düzeltme ve gerçek 3D henüz yok.
+
+## İlk TestFlight yüklemesi — 15 Eylül 2026
+
+Apple kimliği, App Store Connect kaydı ve imzalama profili tamamlandı. Codemagic build 3 ile 0.2.0 (4) IPA derlemesi ve App Store Connect yüklemesi başarılı. Xcode 26.6 üzerinde özel Swift modülü de derlendi. TestFlight dahili grup ve hesap sahibi test erişimi hazırlandı. Apple işleme ve gerçek cihaz kalite testi ayrı aşamalardır.
