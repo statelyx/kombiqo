@@ -2,8 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({ getItem: vi.fn(), setItem: vi.fn(), removePhoto: vi.fn() }));
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: mock }));
 vi.mock('../src/photos', () => ({ removePhoto: mock.removePhoto }));
-import { loadData, saveData } from '../src/storage';
-import { emptyData, DEMO_ITEMS } from '../src/domain';
+import { loadData, saveData, takeLoadNotice } from '../src/storage';
+import { emptyData, DEMO_ITEMS, NEWER_VERSION_NOTICE } from '../src/domain';
 beforeEach(() => { vi.clearAllMocks(); mock.setItem.mockResolvedValue(undefined); });
 it('keeps original photos with cutouts and removes both only when no longer referenced', async () => {
   const item = { ...DEMO_ITEMS[0], image: 'kombiqo-photo:cut.png', originalImage: 'kombiqo-photo:original.jpg', cutout: true };
@@ -23,12 +23,25 @@ it('starts empty and restores valid saved data', async () => {
   mock.getItem.mockResolvedValueOnce(JSON.stringify(stored));
   expect(await loadData()).toEqual(stored);
 });
-it('does not overwrite corrupt or incompatible data on load', async () => {
+it('does not overwrite unreadable data on load', async () => {
   mock.getItem.mockResolvedValueOnce('{broken');
   await expect(loadData()).rejects.toThrow();
-  mock.getItem.mockResolvedValueOnce(JSON.stringify({ version: 2 }));
+  mock.getItem.mockResolvedValueOnce(JSON.stringify({ ...emptyData(), items: [{ id: 'half-written' }] }));
   await expect(loadData()).rejects.toThrow();
   expect(mock.setItem).not.toHaveBeenCalled();
+});
+it('preserves a record written by a newer app version instead of locking the user out', async () => {
+  const newer = JSON.stringify({ version: 2, items: [{ id: 'future' }] });
+  mock.getItem.mockResolvedValueOnce(newer);
+  const data = await loadData();
+  expect(data.items).toEqual([]);
+  expect(takeLoadNotice()).toBe(NEWER_VERSION_NOTICE);
+  expect(mock.setItem).toHaveBeenCalledWith('kombiqo:wardrobe:preserved', newer);
+});
+it('clears the load notice once it has been shown', async () => {
+  mock.getItem.mockResolvedValueOnce(null);
+  await loadData();
+  expect(takeLoadNotice()).toBe('');
 });
 it('serializes writes and allows retry after storage failure', async () => {
   mock.setItem.mockRejectedValueOnce(new Error('full'));

@@ -1,15 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppData, emptyData } from './domain';
+import { AppData, readStored } from './domain';
 import { removePhoto } from './photos';
 const KEY = 'kombiqo:wardrobe:v1';
+// A record written by a newer app version is preserved here instead of being overwritten.
+const PRESERVED_KEY = 'kombiqo:wardrobe:preserved';
 let savedPhotos = new Set<string>();
+let loadNotice = '';
+export function takeLoadNotice() {
+  const notice = loadNotice;
+  loadNotice = '';
+  return notice;
+}
 export async function loadData(): Promise<AppData> {
-  const raw = await AsyncStorage.getItem(KEY);
-  if (!raw) return emptyData();
-  const data = JSON.parse(raw);
-  if (data.version !== 1 || !Array.isArray(data.items) || !Array.isArray(data.saved) || !Array.isArray(data.rejected) || !Array.isArray(data.preferences?.styles) || !Array.isArray(data.preferences?.fits)) throw new Error('Kayıtlı gardırop okunamadı.');
-  savedPhotos = new Set(data.items.flatMap((item: { image?: string; originalImage?: string }) => [item.image, item.originalImage]).filter(Boolean));
-  return data;
+  const read = readStored(await AsyncStorage.getItem(KEY));
+  if (read.preserved) {
+    // Keep the newer record for that version rather than discarding it.
+    try { await AsyncStorage.setItem(PRESERVED_KEY, read.preserved); } catch { /* the original record stayed untouched */ }
+  }
+  loadNotice = read.notice ?? '';
+  savedPhotos = new Set(read.data.items.flatMap((item: { image?: string; originalImage?: string }) => [item.image, item.originalImage]).filter((image): image is string => !!image));
+  return read.data;
 }
 let pending = Promise.resolve();
 export function saveData(data: AppData) {

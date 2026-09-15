@@ -1,16 +1,18 @@
-import React, { useId } from 'react';
+import React, { useId, useMemo } from 'react';
 import { Image, View } from 'react-native';
 import Svg, { Path, Line, Ellipse, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Garment } from './domain';
 import { photoUri } from './photos';
-export function GarmentArt({ item, size = 130, hanger = false }: { item: Garment; size?: number; hanger?: boolean }) {
+function GarmentArtBase({ item, size = 130, hanger = false }: { item: Garment; size?: number; hanger?: boolean }) {
   const gradientId = `fabric-${useId().replace(/:/g, '')}`;
+  // Resolving the file reference on every render is wasteful in long wardrobe lists.
+  const uri = useMemo(() => item.image ? photoUri(item.image) : '', [item.image]);
   if (item.image) return <View style={{ width: size, height: size * 1.2 }}>
     {item.cutout && <Svg width={size} height={size * 1.2} viewBox="0 0 160 192" style={{ position: 'absolute' }}>
       <Ellipse cx="80" cy="179" rx="43" ry="5" fill="#30251C" opacity="0.09" />
       {hanger && item.category !== 'Ayakkabılar' && <><Path d="M75 14 C75 4 88 5 87 13 C87 18 80 18 80 25 L80 29" fill="none" stroke="#AB8B67" strokeWidth="2" /><Path d="M80 27 L44 46 Q42 49 47 49 L113 49 Q118 49 115 46 Z" fill="none" stroke="#AB8B67" strokeWidth="3" /></>}
     </Svg>}
-    <Image source={{ uri: photoUri(item.image) }} style={{ width: size, height: item.cutout ? size * 0.9 : size * 1.2, marginTop: item.cutout ? size * 0.21 : 0, borderRadius: item.cutout ? 0 : 16 }} resizeMode="contain" accessibilityLabel={item.name} />
+    <Image source={{ uri }} style={{ width: size, height: item.cutout ? size * 0.9 : size * 1.2, marginTop: item.cutout ? size * 0.21 : 0, borderRadius: item.cutout ? 0 : 16 }} resizeMode="contain" accessibilityLabel={item.name} />
   </View>;
   return <View accessible accessibilityLabel={item.name}><Svg width={size} height={size * 1.2} viewBox="0 0 160 192">
     <Defs><LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor={item.color} /><Stop offset="1" stopColor={item.color} stopOpacity="0.78" /></LinearGradient></Defs>
@@ -23,3 +25,6 @@ export function GarmentArt({ item, size = 130, hanger = false }: { item: Garment
     {item.category === 'Ayakkabılar' && <><Path d="M37 96 L57 105 L77 92 L93 118 L129 132 Q149 137 144 153 L24 153 Q19 140 27 125Z" fill={`url(#${gradientId})`} stroke="#403A32" strokeOpacity="0.25" strokeWidth="2" /><Path d="M24 153 L144 153 L143 161 L25 161 Z" fill="#EAE5DA" stroke="#403A32" strokeOpacity="0.15" /><Path d="M81 113 L96 115 M86 120 L104 122 M92 127 L111 129 M33 132 Q50 148 72 141" stroke="#403A32" strokeOpacity="0.25" strokeWidth="2" fill="none" /></>}
   </Svg></View>;
 }
+
+// Wardrobe rails render hundreds of these; memo keeps unrelated cards from re-rendering.
+export const GarmentArt = React.memo(GarmentArtBase);

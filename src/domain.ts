@@ -30,24 +30,32 @@ export const outfitId = (ids: string[], occasion: Occasion) => `${occasion}:${[.
 // Local preference scoring; no external model or live trend claims.
 export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = []): Outfit[] {
   const learned = styleAffinity(feedback);
-  const available = items.filter(item => item.occasions.includes(occasion));
-  const byCategory = (category: Category) => available.filter(item => item.category === category);
-  const bases = byCategory('Üstler').flatMap(top => byCategory('Altlar').map(bottom => [top, bottom]));
-  bases.push(...byCategory('Elbiseler').map(dress => [dress]));
-  const candidates = bases.flatMap(base => byCategory('Ayakkabılar').map(shoe => [...base, shoe]));
+  const preferredStyles = new Set(preferences.styles);
+  const preferredFits = new Set(preferences.fits);
+  const preferredBrands = new Set(brands);
   const neutral = new Set(['Ekru', 'Siyah', 'Beyaz', 'Kahve']);
+  const rejectedIds = new Set(rejected);
   const liked = new Map<string, number>();
   saved.forEach(outfit => outfit.itemIds.forEach(id => liked.set(id, (liked.get(id) ?? 0) + 1)));
-  const ranked = candidates.map(parts => {
+  const byCategory = new Map<Category, Garment[]>();
+  const itemScores = new Map<Garment, number>();
+  for (const item of items) {
+    if (!item.occasions.includes(occasion)) continue;
+    byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item]);
+    const styleHits = item.styles.filter(style => preferredStyles.has(style)).length * 3;
+    const clothing = item.category === 'Ayakkabılar' || preferredFits.has(item.fit) ? 2 : 0;
+    const familiarBrand = item.brand && preferredBrands.has(item.brand) ? 2 : 0;
+    const learnedWeight = item.styles.reduce((sum, style) => sum + (learned[style] ?? 0), 0);
+    itemScores.set(item, styleHits + clothing + Math.min(liked.get(item.id) ?? 0, 3) + learnedWeight + familiarBrand);
+  }
+  const category = (name: Category) => byCategory.get(name) ?? [];
+  const shoes = category('Ayakkabılar');
+  const bases = category('Üstler').flatMap(top => category('Altlar').map(bottom => [top, bottom]));
+  bases.push(...category('Elbiseler').map(dress => [dress]));
+  const ranked = bases.flatMap(base => shoes.map(shoe => [...base, shoe])).map(parts => {
     const id = outfitId(parts.map(item => item.id), occasion);
     let score = 0;
-    for (const item of parts) {
-      score += item.styles.filter(style => preferences.styles.includes(style)).length * 3;
-      if (item.category === 'Ayakkabılar' || preferences.fits.includes(item.fit)) score += 2;
-      score += Math.min(liked.get(item.id) ?? 0, 3);
-      score += item.styles.reduce((sum, style) => sum + (learned[style] ?? 0), 0);
-      if (item.brand && brands.includes(item.brand)) score += 2;
-    }
+    for (const item of parts) score += itemScores.get(item) ?? 0;
     const accents = new Set(parts.filter(item => !neutral.has(item.colorName)).map(item => item.colorName));
     score += accents.size <= 1 ? 4 : 0;
     const shared = STYLES.find(style => parts.every(item => item.styles.includes(style)));
@@ -58,16 +66,20 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
       title: shared === 'Klasik' ? 'Biraz daha özenli' : shared === 'Sokak stili' ? 'Sokağın ritmi' : accents.size === 0 ? 'Sade bir uyum' : 'Günün iyi fikri',
       reason: `${shared ? `${shared} çizgideki parçalar` : 'Farklı tarzlardan parçalar'} ${accents.size <= 1 ? 'sakin bir renk dengesiyle' : 'renkli bir eşleşmeyle'} bir arada. ${familiar ? 'Seçtiğin tarzlara yakın.' : 'Alıştığın çizginin biraz dışında bir deneme.'}` };
     return { outfit, score };
-  }).filter(entry => !rejected.includes(entry.outfit.id)).sort((a, b) => b.score - a.score || a.outfit.id.localeCompare(b.outfit.id));
+  }).filter(entry => !rejectedIds.has(entry.outfit.id)).sort((a, b) => b.score - a.score || a.outfit.id.localeCompare(b.outfit.id));
   const selected: Outfit[] = [];
+  const reused = new Map<string, number>();
   while (ranked.length && selected.length < 12) {
-    let bestIndex = 0, bestScore = -Infinity;
+    let bestIndex = 0, bestAdjusted = -Infinity;
     ranked.forEach((entry, index) => {
-      const repeats = selected.reduce((sum, prior) => sum + entry.outfit.itemIds.filter(id => prior.itemIds.includes(id)).length, 0);
+      // Equivalent to counting shared items with every already selected outfit.
+      const repeats = entry.outfit.itemIds.reduce((sum, id) => sum + (reused.get(id) ?? 0), 0);
       const adjusted = entry.score - repeats * 3;
-      if (adjusted > bestScore) { bestScore = adjusted; bestIndex = index; }
+      if (adjusted > bestAdjusted) { bestAdjusted = adjusted; bestIndex = index; }
     });
-    selected.push(ranked.splice(bestIndex, 1)[0].outfit);
+    const chosen = ranked.splice(bestIndex, 1)[0].outfit;
+    chosen.itemIds.forEach(id => reused.set(id, (reused.get(id) ?? 0) + 1));
+    selected.push(chosen);
   }
   return selected;
 }
@@ -90,4 +102,73 @@ export function rateOutfit(data: AppData, outfit: Outfit, liked: boolean): AppDa
     rejected: [...data.rejected.filter(id => id !== outfit.id), ...(!liked ? [outfit.id] : [])],
     feedback: [...(data.feedback ?? []).filter(vote => vote.id !== outfit.id), { id: outfit.id, styles, liked }].slice(-200),
   };
+}
+
+// --- Stored record safety ---------------------------------------------------
+
+export const SCHEMA_VERSION = 1;
+export type Migrations = Record<number, (data: any) => any>;
+// Add one step per released version, then raise SCHEMA_VERSION.
+export const MIGRATIONS: Migrations = {};
+export const UNREADABLE = 'Kayıtlı gardırop okunamadı.';
+export const NEWER_VERSION_NOTICE = 'Gardırobun daha yeni bir Kombiqo sürümüyle kaydedilmiş. Kaydını silmedik: uygulamayı güncelleyip açtığında yerinde olacak.';
+
+const FITS: Fit[] = ['Dar', 'Düz', 'Bol'];
+const isGarment = (item: any) =>
+  !!item && typeof item.id === 'string' && typeof item.name === 'string' && CATEGORIES.includes(item.category) &&
+  typeof item.color === 'string' && typeof item.colorName === 'string' && FITS.includes(item.fit) &&
+  Array.isArray(item.styles) && Array.isArray(item.occasions);
+const isStoredData = (data: any, version: number) =>
+  !!data && data.version === version && Array.isArray(data.items) && data.items.every(isGarment) &&
+  Array.isArray(data.preferences?.styles) && Array.isArray(data.preferences?.fits) &&
+  Array.isArray(data.saved) && data.saved.every((outfit: any) => !!outfit && typeof outfit.id === 'string' && Array.isArray(outfit.itemIds)) &&
+  Array.isArray(data.rejected);
+
+export type StoredRead = { data: AppData; notice?: string; preserved?: string };
+
+// Corrupt text throws, so the caller never overwrites a record we cannot understand.
+// A record written by a newer version is handed back for safe keeping and the app opens empty.
+export function readStored(raw: string | null, target: number = SCHEMA_VERSION, migrations: Migrations = MIGRATIONS): StoredRead {
+  if (!raw) return { data: emptyData() };
+  let parsed: any;
+  try { parsed = JSON.parse(raw); } catch { throw new Error(UNREADABLE); }
+  if (typeof parsed?.version !== 'number') throw new Error(UNREADABLE);
+  if (parsed.version > target) return { data: emptyData(), notice: NEWER_VERSION_NOTICE, preserved: raw };
+  let migrated = parsed;
+  for (let version = parsed.version; version < target; version++) {
+    const step = migrations[version];
+    if (!step) throw new Error(UNREADABLE);
+    migrated = step(migrated);
+  }
+  if (!isStoredData(migrated, target)) throw new Error(UNREADABLE);
+  return { data: migrated as AppData };
+}
+
+// --- Backup file ------------------------------------------------------------
+
+export const BACKUP_FORMAT = 'kombiqo-yedek';
+
+export function createBackup(data: AppData, createdAt: Date = new Date()): string {
+  return JSON.stringify({ format: BACKUP_FORMAT, version: SCHEMA_VERSION, createdAt: createdAt.toISOString(), data }, null, 2);
+}
+
+export function parseBackup(text: string): AppData {
+  let parsed: any;
+  try { parsed = JSON.parse(text.trim()); } catch { throw new Error('Yedek okunamadı. Metnin tamamını kopyaladığından emin ol.'); }
+  if (parsed?.format !== BACKUP_FORMAT || !parsed.data) throw new Error('Bu metin bir Kombiqo yedeği değil.');
+  const read = readStored(JSON.stringify(parsed.data));
+  if (read.notice) throw new Error('Yedek daha yeni bir Kombiqo sürümüyle oluşturulmuş. Uygulamayı güncelleyip tekrar dene.');
+  return read.data;
+}
+
+// --- Input validation -------------------------------------------------------
+
+export function toggleValue<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter(item => item !== value) : [...list, value];
+}
+
+export function validateAge(value: string): string {
+  if (!value) return '';
+  if (!/^\d{1,3}$/.test(value) || Number(value) < 1 || Number(value) > 120) return 'Yaşını 1–120 arasında yazabilir veya boş bırakabilirsin.';
+  return '';
 }

@@ -1,6 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PREFERENCES, DEMO_ITEMS, emptyData, outfitId, recommend, removeItem, Garment } from '../src/domain';
+import { DEFAULT_PREFERENCES, DEMO_ITEMS, emptyData, outfitId, recommend, removeItem, Feedback, Garment, Outfit } from '../src/domain';
 const run = (items = DEMO_ITEMS) => recommend(items, DEFAULT_PREFERENCES, 'Günlük', [], []);
+
+// Ranking is deterministic; these snapshots prove optimisations never change the result.
+describe('Kombiqo ranking stability', () => {
+  const ranked = (outfits: Outfit[]) => outfits.map(outfit => `${outfit.id} · ${outfit.title}`);
+  it('keeps the ranked order of the demo wardrobe', () => {
+    expect(ranked(run())).toMatchInlineSnapshot(`
+      [
+        "Günlük:demo-1|demo-4|demo-7 · Günün iyi fikri",
+        "Günlük:demo-1|demo-4|demo-8 · Günün iyi fikri",
+        "Günlük:demo-2|demo-5|demo-7 · Günün iyi fikri",
+        "Günlük:demo-1|demo-6|demo-7 · Sokağın ritmi",
+        "Günlük:demo-3|demo-5|demo-8 · Günün iyi fikri",
+        "Günlük:demo-2|demo-4|demo-7 · Günün iyi fikri",
+        "Günlük:demo-3|demo-6|demo-8 · Günün iyi fikri",
+        "Günlük:demo-1|demo-5|demo-7 · Sade bir uyum",
+        "Günlük:demo-2|demo-4|demo-8 · Günün iyi fikri",
+        "Günlük:demo-3|demo-5|demo-7 · Günün iyi fikri",
+        "Günlük:demo-1|demo-6|demo-8 · Sade bir uyum",
+        "Günlük:demo-2|demo-5|demo-8 · Günün iyi fikri",
+      ]
+    `);
+  });
+  it('keeps the ranked order for a work occasion', () => {
+    expect(ranked(recommend(DEMO_ITEMS, DEFAULT_PREFERENCES, 'İş', [], []))).toMatchInlineSnapshot(`
+      [
+        "İş:demo-2|demo-5|demo-8 · Günün iyi fikri",
+      ]
+    `);
+  });
+  it('keeps the ranked order with saved history, rejections, learned styles and brands', () => {
+    const first = run()[0];
+    const branded = DEMO_ITEMS.map(item => item.id === 'demo-4' ? { ...item, brand: 'Levi’s' } : item);
+    const feedback: Feedback[] = [{ id: 'vote-1', styles: ['Sportif'], liked: true }, { id: 'vote-2', styles: ['Klasik'], liked: false }];
+    expect(ranked(recommend(branded, DEFAULT_PREFERENCES, 'Günlük', [first], [first.id], feedback, ['Levi’s']))).toMatchInlineSnapshot(`
+      [
+        "Günlük:demo-2|demo-4|demo-7 · Günün iyi fikri",
+        "Günlük:demo-1|demo-6|demo-7 · Sokağın ritmi",
+        "Günlük:demo-1|demo-4|demo-8 · Günün iyi fikri",
+        "Günlük:demo-3|demo-5|demo-7 · Günün iyi fikri",
+        "Günlük:demo-2|demo-4|demo-8 · Günün iyi fikri",
+        "Günlük:demo-1|demo-5|demo-7 · Sade bir uyum",
+        "Günlük:demo-3|demo-6|demo-8 · Günün iyi fikri",
+        "Günlük:demo-2|demo-5|demo-7 · Günün iyi fikri",
+        "Günlük:demo-3|demo-4|demo-8 · Günün iyi fikri",
+        "Günlük:demo-1|demo-6|demo-8 · Sade bir uyum",
+        "Günlük:demo-3|demo-4|demo-7 · Günün iyi fikri",
+        "Günlük:demo-1|demo-5|demo-8 · Sade bir uyum",
+      ]
+    `);
+  });
+  it('keeps the generated copy of the leading outfit', () => {
+    expect(run()[0]).toMatchInlineSnapshot(`
+      {
+        "id": "Günlük:demo-1|demo-4|demo-7",
+        "itemIds": [
+          "demo-1",
+          "demo-4",
+          "demo-7",
+        ],
+        "occasion": "Günlük",
+        "reason": "Minimal çizgideki parçalar sakin bir renk dengesiyle bir arada. Seçtiğin tarzlara yakın.",
+        "title": "Günün iyi fikri",
+      }
+    `);
+  });
+});
 describe('Kombiqo recommendations', () => {
   it('never invents products and produces unique complete outfits', () => {
     const outfits = run();

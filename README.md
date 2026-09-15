@@ -25,6 +25,17 @@ Tarayıcıda arayüz önizlemesi: `npm.cmd run web`. Bu, native iPhone testinin 
 - Gerçek ürün kimliklerinden kombin önerileri; elbise veya üst+alt, yanında ayakkabı.
 - Kaydetme, öneri gizleme/geri getirme, tarz ve keşif tercihleri.
 - Silinen/düzenlenen parçalara bağlı kayıtlı kombinlerin temizlenmesi.
+- İlk açılışta kişisel tarz profili; kombinleri sağa/sola kaydırarak oylama ve son kaydırmayı geri alma.
+- Panodan görsel yapıştırma, marka seçimi; tamamı cihazda çalışır.
+- Yedekleme: gardırobun tamamı panoya veya bir dosyaya aktarılabilir ve yedekten geri yüklenebilir.
+
+## Verilerin korunması
+
+- Arayüz hatası durumunda beyaz ekran yerine kayıtların korunduğunu bildiren bir ekran gösterilir.
+- Okunamayan kayıt üzerine yazılmaz; uygulama veriyi ezmek yerine açıkça hata verir.
+- Daha yeni bir Kombiqo sürümüyle yazılmış kayıt silinmez; ayrı bir yere kopyalanır ve kullanıcı bilgilendirilir.
+- Kayıt biçimi ileride değişirse eski kayıtlar sürüm adımlarıyla taşınır (`SCHEMA_VERSION` ve `MIGRATIONS`).
+- Yedekten geri yükleme mevcut gardırobun yerini alır; bu yüzden önce yedek alınması önerilir.
 
 ## Sınırlar
 
@@ -39,7 +50,7 @@ npm.cmd run check
 npm.cmd run export:web
 ```
 
-`tests/` önerilerin gerçek ürünlerle sınırlı olması, kullanım alanı, tarz kişiselleştirme, silme tutarlılığı ve depolama hatalarını kapsar.
+`tests/` önerilerin gerçek ürünlerle sınırlı olması, kullanım alanı, tarz kişiselleştirme, silme tutarlılığı, kayıt biçimi taşıma, yedek/geri yükleme, girdi doğrulama ve depolama hatalarını kapsar. Öneri sıralaması inline snapshot ile sabitlenmiştir; motor değişse bile aynı girdi aynı sırayı üretmelidir.
 
 ## Dağıtım
 
