@@ -5,10 +5,12 @@ export type Category = typeof CATEGORIES[number];
 export type Style = typeof STYLES[number];
 export type Occasion = typeof OCCASIONS[number];
 export type Fit = 'Dar' | 'Düz' | 'Bol';
-export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean };
+export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean; brand?: string };
 export type Outfit = { id: string; itemIds: string[]; occasion: Occasion; title: string; reason: string };
 export type Preferences = { styles: Style[]; exploration: boolean; fits: Fit[] };
-export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean };
+export type Profile = { name: string; age?: number; gender: string; brands: string[] };
+export type Feedback = { id: string; styles: Style[]; liked: boolean };
+export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[] };
 export const COLORS = [{ name: 'Ekru', hex: '#E7DFD0' }, { name: 'Siyah', hex: '#343432' }, { name: 'Mavi', hex: '#819BAD' }, { name: 'Kahve', hex: '#826652' }, { name: 'Yeşil', hex: '#7B8469' }, { name: 'Beyaz', hex: '#F4F2ED' }, { name: 'Pembe', hex: '#CEA5A1' }, { name: 'Bordo', hex: '#824B52' }];
 export const DEFAULT_PREFERENCES: Preferences = { styles: ['Minimal', 'Sokak stili'], fits: ['Düz', 'Bol'], exploration: true };
 export const DEMO_ITEMS: Garment[] = [
@@ -26,7 +28,8 @@ export const emptyData = (): AppData => ({ version: 1, items: [], preferences: {
 export const outfitId = (ids: string[], occasion: Occasion) => `${occasion}:${[...ids].sort().join('|')}`;
 
 // Local preference scoring; no external model or live trend claims.
-export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[]): Outfit[] {
+export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = []): Outfit[] {
+  const learned = styleAffinity(feedback);
   const available = items.filter(item => item.occasions.includes(occasion));
   const byCategory = (category: Category) => available.filter(item => item.category === category);
   const bases = byCategory('Üstler').flatMap(top => byCategory('Altlar').map(bottom => [top, bottom]));
@@ -42,6 +45,8 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
       score += item.styles.filter(style => preferences.styles.includes(style)).length * 3;
       if (item.category === 'Ayakkabılar' || preferences.fits.includes(item.fit)) score += 2;
       score += Math.min(liked.get(item.id) ?? 0, 3);
+      score += item.styles.reduce((sum, style) => sum + (learned[style] ?? 0), 0);
+      if (item.brand && brands.includes(item.brand)) score += 2;
     }
     const accents = new Set(parts.filter(item => !neutral.has(item.colorName)).map(item => item.colorName));
     score += accents.size <= 1 ? 4 : 0;
@@ -68,4 +73,21 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
 }
 export function removeItem(data: AppData, id: string): AppData {
   return { ...data, items: data.items.filter(item => item.id !== id), saved: data.saved.filter(outfit => !outfit.itemIds.includes(id)), rejected: [] };
+}
+
+export function styleAffinity(feedback: Feedback[] = []): Partial<Record<Style, number>> {
+  const weights: Partial<Record<Style, number>> = {};
+  for (const vote of feedback) for (const style of new Set(vote.styles)) {
+    weights[style] = (weights[style] ?? 0) + (vote.liked ? 1 : -0.4);
+  }
+  for (const style of STYLES) weights[style] = Math.max(-3, Math.min(5, weights[style] ?? 0));
+  return weights;
+}
+export function rateOutfit(data: AppData, outfit: Outfit, liked: boolean): AppData {
+  const styles = [...new Set(data.items.filter(item => outfit.itemIds.includes(item.id)).flatMap(item => item.styles))];
+  return { ...data,
+    saved: [...(liked ? [outfit] : []), ...data.saved.filter(entry => entry.id !== outfit.id)],
+    rejected: [...data.rejected.filter(id => id !== outfit.id), ...(!liked ? [outfit.id] : [])],
+    feedback: [...(data.feedback ?? []).filter(vote => vote.id !== outfit.id), { id: outfit.id, styles, liked }].slice(-200),
+  };
 }

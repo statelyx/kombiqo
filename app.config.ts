@@ -1,7 +1,7 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Kombiqo', slug: 'kombiqo', version: '0.2.0', scheme: 'kombiqo',
+  name: 'Kombiqo', slug: 'kombiqo', version: '0.3.0', scheme: 'kombiqo',
   orientation: 'portrait', userInterfaceStyle: 'light', icon: './assets/icon.png',
   ios: { supportsTablet: false, bundleIdentifier: 'com.kombiqo.app', buildNumber: process.env.BUILD_NUMBER || '1', infoPlist: { ITSAppUsesNonExemptEncryption: false } },
   android: { package: 'com.kombiqo.app', versionCode: Number(process.env.BUILD_NUMBER || 1), adaptiveIcon: { foregroundImage: './assets/android-icon-foreground.png', monochromeImage: './assets/android-icon-monochrome.png', backgroundColor: '#C35F45' } },
