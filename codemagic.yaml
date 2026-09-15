@@ -1,0 +1,61 @@
+# Requires account setup documented in docs/testflight.md. No automatic triggers.
+workflows:
+  ios-testflight:
+    name: Kombiqo iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: kombiqo-app-store
+    environment:
+      node: 22.19.0
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.kombiqo.app
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Validate
+        script: npm run check
+      - name: Generate iOS project
+        script: |
+          export BUILD_NUMBER=$((PROJECT_BUILD_NUMBER + 1))
+          npx expo prebuild --platform ios --no-install
+          cd ios && pod install
+      - name: Apply signing profiles
+        script: xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa --workspace ios/Kombiqo.xcworkspace --scheme Kombiqo
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
+  android-debug:
+    name: Kombiqo Android test APK
+    max_build_duration: 45
+    instance_type: linux_x2
+    environment:
+      node: 22.19.0
+      java: 17
+    scripts:
+      - name: Install and validate
+        script: |
+          npm ci
+          npm run check
+      - name: Generate Android project
+        script: npx expo prebuild --platform android --no-install
+      - name: Build standalone test APK
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+    artifacts:
+      - android/app/build/outputs/apk/release/*.apk
+# Expo's generated release configuration uses a DEBUG key by default.
+# This APK is for local testing only, not Play Store distribution.

@@ -1,0 +1,12 @@
+import { Resvg } from '@resvg/resvg-js';
+import { writeFileSync } from 'node:fs';
+const drawing = '<path d="M330 270V750M365 526L648 292M400 500L677 742" fill="none" stroke="#F8F6F1" stroke-width="85" stroke-linecap="round" stroke-linejoin="round"/><circle cx="751" cy="749" r="45" fill="#EFC4A4"/>';
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="#C35F45"/>${drawing}</svg>`;
+writeFileSync('assets/brand-icon.svg', svg);
+writeFileSync('assets/icon.png', new Resvg(svg).render().asPng());
+writeFileSync('assets/favicon.png', new Resvg(svg, { fitTo: { mode: 'width', value: 64 } }).render().asPng());
+const adaptive = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><g transform="translate(160 160) scale(.6875)">${drawing}</g></svg>`;
+writeFileSync('assets/android-icon-foreground.png', new Resvg(adaptive).render().asPng());
+const splash = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><g>${drawing.replaceAll('#F8F6F1', '#C35F45')}</g></svg>`;
+writeFileSync('assets/splash-icon.png', new Resvg(splash).render().asPng());
+writeFileSync('assets/android-icon-monochrome.png', new Resvg(adaptive.replaceAll('#F8F6F1', '#000000').replaceAll('#EFC4A4', '#000000')).render().asPng());
