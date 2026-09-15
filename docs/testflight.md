@@ -42,3 +42,7 @@
 Kaynaklar: https://docs.codemagic.io/yaml-quick-start/building-a-react-native-app/ ve https://docs.codemagic.io/yaml-publishing/app-store-connect/
 
 Fotoğraf stüdyosu için iOS 17+ gereklidir. İlk build sırasında KombiqoCutout podunun kurulduğunu ve Swift derlemesinin geçtiğini kontrol edin. Ayrıntılı cihaz senaryoları: [Fotoğraf stüdyosu](photo-studio.md).
+
+## Dahili test dağıtımı
+
+0.2.0 (4) Apple tarafından işlendi ve dahili gruba otomatik eklendi. İlk iş akışındaki submit_to_testflight: true dış beta incelemesi talep ettiği için eksik beta iletişim bilgisi hatası verdi. Bu seçenek false olarak düzeltildi; IPA yüklemesi ve dahili grubun otomatik dağıtımı devam eder. Mevcut 0.2.0 (4) için yeniden build gerekmez. Hesap sahibinin Apple TestFlight davetini kabul etmesi gerekir; Invited durumu kabul beklediğini gösterir.
