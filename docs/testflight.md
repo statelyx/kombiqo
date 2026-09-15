@@ -1,8 +1,19 @@
 # iPhone'da TestFlight hazırlığı
 
-Bu dosya bir hazırlık rehberidir. Apple veya Codemagic hesabına bağlanılmadı; henüz IPA derlenmedi/yüklenmedi.
+15 Eylül 2026: Apple uygulama kimliği ve App Store Connect kaydı oluşturuldu. Codemagic imzalama profili bağlandı ve ilk gerçek iOS derlemesi başlatıldı. Derlemenin tamamlanması ve TestFlight işleme sonucu ayrıca doğrulanmalıdır.
 
-1. `com.kombiqo.app` geçici seçilmiş uygulama kimliğidir. Apple hesabında uygunluğunu doğrulayın; farklı kimlik kullanacaksanız `app.config.ts` ve `codemagic.yaml` dosyalarını birlikte değiştirin.
+- Bundle ID: `com.kombiqo.app`
+- Apple uygulama ID: `6812286879`
+- Codemagic uygulama ID: `6aa90dcbfad5fddd5263af51`
+- Sertifika referansı: `kombiqo-distribution`
+- Profil referansı: `kombiqo-app-store-profile` (Apple adı: Kombiqo App Store)
+- İş akışı: `ios-testflight`, dal: `main`
+
+İlk hata, profile sahip olmayan bundle ID nedeniyle build başlamadan alınan `No matching profiles found` hatasıydı. Mevcut sertifikayla uygulamaya özel profil oluşturularak çözüldü; MooTycoon'un kimliği veya gizli değişkenleri kopyalanmadı.
+
+## Yeniden kurulum
+
+1. `com.kombiqo.app` Apple hesabında kayıtlı uygulama kimliğidir; farklı kimlik kullanacaksanız `app.config.ts` ve `codemagic.yaml` dosyalarını birlikte değiştirin.
 2. App Store Connect'te yeni uygulama kaydı oluşturun. Kombiqo adının kullanılabilirliği bu adımda ayrıca kontrol edilir.
 3. Codemagic’e https://github.com/statelyx/kombiqo deposunu bağlayın ve main dalını seçin.
 4. Codemagic'te App Store Connect entegrasyonunu `kombiqo-app-store` adıyla tanımlayın. API anahtarını sadece Codemagic'in gizli alanına ekleyin; repoya veya sohbete koymayın.
