@@ -14,6 +14,10 @@ Arayüz Expo Go ile incelenebilir; özel Vision modülü Expo Go içinde bulunma
 
 Tarayıcıda arayüz önizlemesi: `npm.cmd run web`. Bu, native iPhone testinin yerine geçmez.
 
+## Akıllı ekleme güncellemesi
+
+İsteğe bağlı tarama ekranı, iPhone üzerinde renk/tür/okunabilir marka önerileri, düzenlenebilir sonuçlar ve bilinmeyen alanlarla elle devam eklendi. Cloudflare üzerindeki ücretsiz çevrimiçi analiz bağlandı; fotoğraf yalnızca kullanıcı izin verirse gönderilir. Kota/ağ sorunu olduğunda cihazdaki bilgilerle devam edilir. [Kullanım ve dağıtım durumu](docs/smart-add.md).
+
 ## Çalışan özellikler
 
 - Boş gardırop veya açıkça etiketlenmiş örnek gardırop ile başlangıç.
@@ -39,9 +43,9 @@ Tarayıcıda arayüz önizlemesi: `npm.cmd run web`. Bu, native iPhone testinin 
 
 ## Sınırlar
 
-Bu sürüm harici yapay zekâya bağlanmaz; otomatik kıyafet etiketleme, canlı trend toplama, hava durumu, sanal giydirme, kullanıcı hesabı ve bulut eşitleme içermez. Dış giyim kataloglanabilir; öneri motoru ilk sürümde temel kombinleri üretir. Tarz etiketleri kullanıcı tarafından seçilir; öneriler kontrollü yerel puanlamadır.
+İsteğe bağlı fotoğraf analizi Cloudflare Workers AI kullanır. Canlı trend toplama, hava durumu, sanal giydirme, kullanıcı hesabı ve bulut eşitleme içermez. Dış giyim kataloglanabilir; öneri motoru ilk sürümde temel kombinleri üretir. Tarz etiketleri kullanıcı tarafından seçilir; öneriler kontrollü yerel puanlamadır.
 
-Veriler bu cihazda kalır. Uygulamanın silinmesi veya tarayıcı verilerinin temizlenmesi kayıtları silebilir. Çok büyük gardıroplar için sonraki aşamada ürün verilerinin veritabanına taşınması planlanır. İlk sürüm küçük kişisel gardıroplar içindir.
+Gardırop bu cihazda kalır; izin verilen çevrimiçi analizde seçili fotoğraf gönderilir. Uygulamanın silinmesi veya tarayıcı verilerinin temizlenmesi kayıtları silebilir. Çok büyük gardıroplar için sonraki aşamada ürün verilerinin veritabanına taşınması planlanır. İlk sürüm küçük kişisel gardıroplar içindir.
 
 ## Kontroller
 

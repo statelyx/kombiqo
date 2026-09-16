@@ -37,7 +37,8 @@
     "test": "vitest run",
     "check": "npm run typecheck && npm test",
     "export:web": "expo export --platform web",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "analysis:server": "node --env-file-if-exists=.env.server.local server/index.mjs"
   },
   "private": true,
   "overrides": {

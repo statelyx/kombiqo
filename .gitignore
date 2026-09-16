@@ -43,3 +43,9 @@ yarn-error.*
 .env*
 work/
 coverage/
+server/*.local.json
+server/*.local.json.*
+.wrangler/
+server/.wrangler/
+.dev.vars*
+server/.dev.vars*

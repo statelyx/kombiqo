@@ -1,0 +1,13 @@
+{
+  "name": "kombiqo-analysis",
+  "main": "worker.mjs",
+  "account_id": "021ecf0a131f68ed9180d1904251c264",
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "ai": { "binding": "AI" },
+  "durable_objects": { "bindings": [{ "name": "BUDGET", "class_name": "AnalysisBudget" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AnalysisBudget"] }],
+  "vars": { "CF_FREE_ONLY_VERIFIED": "true", "HF_FREE_ONLY_VERIFIED": "false", "RAPID_FREE_ONLY_VERIFIED": "false", "WEB_ORIGIN": "http://localhost:8082" },
+  "observability": { "enabled": false }
+}

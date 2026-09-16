@@ -11,7 +11,7 @@ export type Preferences = { styles: Style[]; exploration: boolean; fits: Fit[] }
 export type Profile = { name: string; age?: number; gender: string; brands: string[] };
 export type Feedback = { id: string; styles: Style[]; liked: boolean };
 export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[] };
-export const COLORS = [{ name: 'Ekru', hex: '#E7DFD0' }, { name: 'Siyah', hex: '#343432' }, { name: 'Mavi', hex: '#819BAD' }, { name: 'Kahve', hex: '#826652' }, { name: 'Yeşil', hex: '#7B8469' }, { name: 'Beyaz', hex: '#F4F2ED' }, { name: 'Pembe', hex: '#CEA5A1' }, { name: 'Bordo', hex: '#824B52' }];
+export const COLORS = [{ name: 'Ekru', hex: '#E7DFD0' }, { name: 'Lacivert', hex: '#19243B' }, { name: 'Gri', hex: '#858585' }, { name: 'Siyah', hex: '#343432' }, { name: 'Mavi', hex: '#819BAD' }, { name: 'Kahve', hex: '#826652' }, { name: 'Yeşil', hex: '#7B8469' }, { name: 'Beyaz', hex: '#F4F2ED' }, { name: 'Pembe', hex: '#CEA5A1' }, { name: 'Bordo', hex: '#824B52' }];
 export const DEFAULT_PREFERENCES: Preferences = { styles: ['Minimal', 'Sokak stili'], fits: ['Düz', 'Bol'], exploration: true };
 export const DEMO_ITEMS: Garment[] = [
   { id: 'demo-1', name: 'Ekru basic tişört', category: 'Üstler', color: '#E7DFD0', colorName: 'Ekru', fit: 'Bol', styles: ['Minimal', 'Sokak stili'], occasions: ['Günlük', 'Dışarıda'], demo: true },

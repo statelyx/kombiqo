@@ -31,3 +31,7 @@ TestFlight'ta iOS 17+ cihazla, uçak modunda:
 6. Kamera iznini reddet, galeriden devam et. İşlem hatasında mevcut fotoğraf kaybolmasın.
 
 Swift/Vision işlemi henüz bu Windows ortamında çalıştırılmadı. Kalite/hız garantisi yok; gerçek cihaz sonucu ölçülmeli.
+
+## Otomatik ürün hazırlama
+
+Desteklenen iPhone’da galeri, kamera ve panodan eklenen fotoğraf otomatik temizlenir. Tek ön plan nesnesi aranır; kişi algılanırsa veya birden fazla nesne bulunursa orijinal korunur ve tek ürün fotoğrafı istenir. Bu işlem kırışıklık gidermez, mankenden düz ürün üretmez; renk/logo/kumaşı yeniden çizmez. Düz ve ütülü sonuç için kaynak fotoğraf da düz ve ütülü ürün olmalıdır. Web/Android otomatik temizlemeyi desteklemez. Swift değişikliği yeni TestFlight derlemesinde cihazda sınanmalıdır.
