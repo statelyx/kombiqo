@@ -2,7 +2,7 @@
 
 ## Kullanım
 
-Kıyafet ekleme ekranında **Akıllı ekleme** anahtarını aç, galeriden/kameradan tek bir kıyafet seç veya ürün görselini yapıştır. Fotoğraf seçicide kırpma kullanılabilir. **Fotoğrafı incele** tarama ekranını açar. Sonuçta bulunamayan alanlar **Bilinmiyor** gösterilir. **Önerileri forma aktar**, yalnızca bulunan alanları mevcut düzenlenebilir forma yazar; gardıroba kayıt ayrıca kullanıcı tarafından yapılır. Elle ekleme korunmuştur.
+Kıyafet ekleme ekranında **Akıllı ekleme** anahtarını aç, galeriden/kameradan tek bir kıyafet seç veya ürün görselini yapıştır. Fotoğraf seçici zorunlu kırpma yapmaz; uzun ürünler tam boy alınır ve oranları korunarak gösterilir. **Fotoğrafı incele** tarama ekranını açar. Sonuçta bulunamayan alanlar **Bilinmiyor** gösterilir. **Önerileri forma aktar**, yalnızca bulunan alanları mevcut düzenlenebilir forma yazar; gardıroba kayıt ayrıca kullanıcı tarafından yapılır. Elle ekleme korunmuştur.
 
 - iPhone: mevcut yerel Expo modülüne eklenen Apple Vision sınıflandırma ve metin okuma; merkez bölgeden renk örnekleme. Fotoğraf dışarı çıkmaz. Marka yalnızca okunmuş metinle eşleştirilir, logodan tahmin edilmez.
 - Web: cihazdaki canvas üzerinden renk önerisi; marka/tür tanıma iddiası yok.
@@ -58,3 +58,7 @@ IP başına 24 saatte 5 istek, aynı anda 2 işlem; proxy arkasında IP başlı�
 `npm run check` ve `npm run export:web`. 56 otomatik test geçti. Canlı servis ürün fotoğrafıyla doğrulandı; tarayıcıda lacivert renk ve cihazda devam akışı kontrol edildi. iOS Swift derlemesi ve cihaz üzerindeki Vision doğruluğu Windows üzerinde doğrulanamaz; yeni native TestFlight derlemesinde kontrol edilmelidir. Expo Go yeni native metotları içermez.
 
 TestFlight: yeni kıyafet/var olan kıyafet, izin reddi, çevrimdışı kullanım, iptal, kötü ışık, logosuz ürün, okunabilir etiket, çok parçalı fotoğraf, yeniden açılış ve yedek geri yükleme. Manken üzerindeki kıyafeti düz ürün fotoğrafına dönüştürme bu sürümün kapsamı değildir.
+
+## Ürün sunumu ve keşif
+
+Alt giyim iki klipsli askı, üst giyim omuz askısı, elbiseler ince askı, ayakkabılar askısız gösterilir. Analiz göstergesi şampanya tonunda yumuşak ışık geçişidir. Kombinlerde gerçek ürünler açılı katmanlarla sunulur; kaydırmada hafif paralaks, dokunmada parça bilgisi vardır. Hareket azaltma tercihinde paralaks kapanır. Bir kombin değerlendirmesinin etkisi tarz etiketleri arasında bölüştürülür; ret sinyali zayıftır. Mevcut geri alma ve öğrenilen tercihleri sıfırlama korunur. Bu özellikler API çağrısı yapmaz.

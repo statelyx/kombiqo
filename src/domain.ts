@@ -89,8 +89,11 @@ export function removeItem(data: AppData, id: string): AppData {
 
 export function styleAffinity(feedback: Feedback[] = []): Partial<Record<Style, number>> {
   const weights: Partial<Record<Style, number>> = {};
-  for (const vote of feedback) for (const style of new Set(vote.styles)) {
-    weights[style] = (weights[style] ?? 0) + (vote.liked ? 1 : -0.4);
+  // One outfit is one signal, regardless of how many style tags its pieces carry.
+  // Rejections are weak evidence: the disliked part may be color or fit, not style.
+  for (const vote of feedback) {
+    const styles = [...new Set(vote.styles)];
+    for (const style of styles) weights[style] = (weights[style] ?? 0) + (vote.liked ? 1 : -0.15) / styles.length;
   }
   for (const style of STYLES) weights[style] = Math.max(-3, Math.min(5, weights[style] ?? 0));
   return weights;

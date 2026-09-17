@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { ProfileEditor, SelectList, BRANDS } from './profile';
+import { OutfitComposition } from './outfit-composition';
 import { SwipeCard } from './swipe-card';
 import { rateOutfit, styleAffinity } from './domain';
 import * as ImagePicker from 'expo-image-picker';
@@ -169,7 +170,7 @@ function Main() {
 
 function OutfitCard({ outfit, items, index, saved, onSave, onReject }: { outfit: Outfit; items: Garment[]; index: number; saved: boolean; onSave: () => void; onReject?: () => void }) {
   const parts = outfit.itemIds.map(id => items.find(item => item.id === id)).filter((item): item is Garment => !!item);
-  return <View style={s.outfitCard}><View style={s.sectionRow}><Text style={s.eyebrow}>EŞLEŞME {String(index + 1).padStart(2, '0')} · {outfit.occasion.toLocaleUpperCase('tr')}</Text><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Kombini kayıtlardan çıkar' : 'Kombini kaydet'} onPress={onSave} style={s.iconButton}><Icon name={saved ? 'bookmark' : 'bookmark-outline'} color={C.coral} /></Pressable></View><View style={s.outfitArt}>{parts.map(item => <GarmentArt key={item.id} item={item} size={92} />)}</View><View style={s.palette}>{parts.map(item => <View key={item.id} style={[s.paletteDot, { backgroundColor: item.color }]} />)}</View><Text style={s.outfitTitle}>{outfit.title}</Text><Text style={s.body}>{outfit.reason}</Text><Text style={s.outfitParts}>{parts.map(item => item.name).join(' + ')}</Text>{onReject && <Pressable accessibilityRole="button" onPress={onReject} style={s.reject}><Text style={s.meta}>Bu eşleşme bana göre değil</Text><Icon name="close-outline" size={17} color={C.muted} /></Pressable>}</View>;
+  return <View style={s.outfitCard}><View style={s.sectionRow}><Text style={s.eyebrow}>EŞLEŞME {String(index + 1).padStart(2, '0')} · {outfit.occasion.toLocaleUpperCase('tr')}</Text><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Kombini kayıtlardan çıkar' : 'Kombini kaydet'} onPress={onSave} style={s.iconButton}><Icon name={saved ? 'bookmark' : 'bookmark-outline'} color={C.coral} /></Pressable></View><OutfitComposition parts={parts} /><View style={s.palette}>{parts.map(item => <View key={item.id} style={[s.paletteDot, { backgroundColor: item.color }]} />)}</View><Text style={s.outfitTitle}>{outfit.title}</Text><Text style={s.body}>{outfit.reason}</Text><Text style={s.outfitParts}>{parts.map(item => item.name).join(' + ')}</Text>{onReject && <Pressable accessibilityRole="button" onPress={onReject} style={s.reject}><Text style={s.meta}>Bu eşleşme bana göre değil</Text><Icon name="close-outline" size={17} color={C.muted} /></Pressable>}</View>;
 }
 
 function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; onClose: () => void; onSave: (item: Garment) => void; onDelete?: () => void }) {
@@ -203,7 +204,7 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) { setError('Kamera izni verilmedi. Galeriden fotoğraf seçebilir veya Ayarlar üzerinden izin verebilirsin.'); return; }
       }
-      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, quality: 0.9 };
+      const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: false, quality: 0.9 };
       const result = camera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (!result.canceled) {
         const resized = await ImageManipulator.manipulateAsync(result.assets[0].uri, [{ resize: { width: Math.min(result.assets[0].width, 1280) } }], { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true });

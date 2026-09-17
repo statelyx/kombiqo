@@ -36,3 +36,11 @@ describe('local style learning', () => {
     expect(styleAffinity(restored.feedback).Minimal).toBe(0);
   });
 });
+
+it('shares one vote across tags and treats a rejection as weak evidence', () => {
+  const liked = styleAffinity([{ id: 'mixed', styles: ['Minimal', 'Sportif'], liked: true }]);
+  expect(liked.Minimal).toBe(.5);
+  expect(liked.Sportif).toBe(.5);
+  const rejected = styleAffinity([{ id: 'mixed', styles: ['Minimal', 'Sportif'], liked: false }]);
+  expect(rejected.Minimal).toBeCloseTo(-.075);
+});
