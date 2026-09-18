@@ -22,13 +22,12 @@ export function ProfileEditor({ profile, preferences, onSave }: { profile?: Prof
   const [collections, setCollections] = useState(profile?.collections ?? []);
   const [coverage, setCoverage] = useState(profile?.coverage ?? 'Fark etmez');
   const [occasions, setOccasions] = useState<Occasion[]>(profile?.occasions ?? []);
-  const [mannequin, setMannequin] = useState(profile?.mannequin ?? (profile?.gender === 'Kadın' ? 'Kadın' : profile?.gender === 'Erkek' ? 'Erkek' : 'Nötr'));
   const [error, setError] = useState('');
   function submit() {
     const ageProblem = validateAge(age);
     if (ageProblem) { setError(ageProblem); return; }
     if (!styles.length) { setError('En az bir tarz seç.'); return; }
-    onSave({ name: name.trim(), age: age ? Number(age) : undefined, gender, brands, collections, coverage, occasions, mannequin }, styles);
+    onSave({ name: name.trim(), age: age ? Number(age) : undefined, gender, brands, collections, coverage, occasions }, styles);
   }
   return <Modal visible animationType="slide" onRequestClose={submit}><SafeAreaView style={s.page}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flex: undefined }]}><Text style={s.kicker}>SANA AİT BİR BAŞLANGIÇ</Text><Text style={s.title}>Seni biraz tanıyalım.</Text><Text style={s.text}>Seçtiklerin ilk önerileri şekillendirir. Kaydırdıkça birlikte keşfederiz.</Text>
     <Text style={s.label}>Adın veya takma adın</Text><TextInput accessibilityLabel="Adın veya takma adın" value={name} onChangeText={setName} maxLength={40} placeholder="Sana nasıl seslenelim?" style={s.input} />
@@ -37,7 +36,6 @@ export function ProfileEditor({ profile, preferences, onSave }: { profile?: Prof
     <SelectList label="Öneri koleksiyonları · isteğe bağlı" options={['Kadın', 'Erkek', 'Unisex']} values={collections} multiple onChange={setCollections} />
     <SelectList label="Örtücülük tercihin" options={['Fark etmez', 'Daha örtücü']} values={[coverage]} onChange={v => setCoverage(v[0])} />
     <SelectList label="Sık giyindiğin ortamlar" options={OCCASIONS} values={occasions} multiple onChange={v => setOccasions(v as Occasion[])} />
-    <SelectList label="Varsayılan manken" options={['Kadın', 'Erkek', 'Nötr']} values={[mannequin]} onChange={v => setMannequin(v[0])} />
     <SelectList label="Sana yakın tarzlar" options={STYLES} values={styles} multiple onChange={v => setStyles(v as Style[])} />
     <SelectList label="Alışveriş yaptığın markalar" options={BRANDS} values={brands} multiple custom onChange={setBrands} />
     <Text style={[s.text, { marginVertical: 20, fontSize: 12 }]}>Bilgilerin bu cihazda kalır. Yaş ve cinsiyet tarzlarını sınırlandırmaz. Marka ve tarz seçimlerini sonra değiştirebilirsin.</Text>{!!error && <Text style={{ color: C.warningText }}>{error}</Text>}<Pressable accessibilityRole="button" style={s.button} onPress={submit}><Text style={s.white}>Tarzımı keşfet</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView></Modal>;
