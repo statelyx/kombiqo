@@ -1,16 +1,17 @@
-export const CATEGORIES = ['Üstler', 'Altlar', 'Dış giyim', 'Ayakkabılar', 'Elbiseler'] as const;
+export const CATEGORIES = ['Üstler', 'Altlar', 'Dış giyim', 'Ayakkabılar', 'Elbiseler', 'Çantalar', 'Aksesuarlar'] as const;
 export const STYLES = ['Minimal', 'Sokak stili', 'Klasik', 'Sportif', 'Romantik'] as const;
-export const OCCASIONS = ['Günlük', 'İş', 'Dışarıda'] as const;
+export const OCCASIONS = ['Günlük', 'İş', 'Dışarıda', 'Davet', 'Spor'] as const;
 export type Category = typeof CATEGORIES[number];
 export type Style = typeof STYLES[number];
 export type Occasion = typeof OCCASIONS[number];
 export type Fit = 'Dar' | 'Düz' | 'Bol';
-export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean; brand?: string };
+export type BrushStroke = { points: string; width: number; restore: boolean };
+export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean; brand?: string; subtype?: string; collection?: string; coverage?: string; secondImage?: string; secondOriginal?: string; secondCutout?: boolean; preferredAngle?: 'main' | 'second'; backdrop?: string; brush?: BrushStroke[]; laundry?: boolean; lastWorn?: string; wearCount?: number };
 export type Outfit = { id: string; itemIds: string[]; occasion: Occasion; title: string; reason: string };
 export type Preferences = { styles: Style[]; exploration: boolean; fits: Fit[] };
-export type Profile = { name: string; age?: number; gender: string; brands: string[] };
-export type Feedback = { id: string; styles: Style[]; liked: boolean };
-export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[] };
+export type Profile = { name: string; age?: number; gender: string; brands: string[]; collections?: string[]; coverage?: string; occasions?: Occasion[]; mannequin?: string };
+export type Feedback = { id: string; styles: Style[]; liked: boolean; reason?: string };
+export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[]; trips?: { id: string; name: string; outfits: Outfit[] }[] };
 export const COLORS = [{ name: 'Ekru', hex: '#E7DFD0' }, { name: 'Lacivert', hex: '#19243B' }, { name: 'Gri', hex: '#858585' }, { name: 'Siyah', hex: '#343432' }, { name: 'Mavi', hex: '#819BAD' }, { name: 'Kahve', hex: '#826652' }, { name: 'Yeşil', hex: '#7B8469' }, { name: 'Beyaz', hex: '#F4F2ED' }, { name: 'Pembe', hex: '#CEA5A1' }, { name: 'Bordo', hex: '#824B52' }];
 export const DEFAULT_PREFERENCES: Preferences = { styles: ['Minimal', 'Sokak stili'], fits: ['Düz', 'Bol'], exploration: true };
 export const DEMO_ITEMS: Garment[] = [
@@ -28,7 +29,7 @@ export const emptyData = (): AppData => ({ version: 1, items: [], preferences: {
 export const outfitId = (ids: string[], occasion: Occasion) => `${occasion}:${[...ids].sort().join('|')}`;
 
 // Local preference scoring; no external model or live trend claims.
-export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = []): Outfit[] {
+export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = [], options: { pinned?: string; profile?: Profile } = {}): Outfit[] {
   const learned = styleAffinity(feedback);
   const preferredStyles = new Set(preferences.styles);
   const preferredFits = new Set(preferences.fits);
@@ -40,7 +41,9 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
   const byCategory = new Map<Category, Garment[]>();
   const itemScores = new Map<Garment, number>();
   for (const item of items) {
-    if (!item.occasions.includes(occasion)) continue;
+    if (item.laundry || !item.occasions.includes(occasion)) continue;
+    if (options.profile?.collections?.length && item.collection && item.collection !== 'Unisex' && !options.profile.collections.includes(item.collection)) continue;
+    if (options.profile?.coverage === 'Daha örtücü' && item.coverage === 'Açık') continue;
     byCategory.set(item.category, [...(byCategory.get(item.category) ?? []), item]);
     const styleHits = item.styles.filter(style => preferredStyles.has(style)).length * 3;
     const clothing = item.category === 'Ayakkabılar' || preferredFits.has(item.fit) ? 2 : 0;
@@ -52,7 +55,8 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
   const shoes = category('Ayakkabılar');
   const bases = category('Üstler').flatMap(top => category('Altlar').map(bottom => [top, bottom]));
   bases.push(...category('Elbiseler').map(dress => [dress]));
-  const ranked = bases.flatMap(base => shoes.map(shoe => [...base, shoe])).map(parts => {
+  const pinnedExtra = options.pinned ? items.find(item => item.id === options.pinned && ['Dış giyim', 'Çantalar', 'Aksesuarlar'].includes(item.category) && itemScores.has(item)) : undefined;
+  const ranked = bases.flatMap(base => shoes.map(shoe => [...base, shoe, ...(pinnedExtra ? [pinnedExtra] : [])])).map(parts => {
     const id = outfitId(parts.map(item => item.id), occasion);
     let score = 0;
     for (const item of parts) score += itemScores.get(item) ?? 0;
@@ -66,7 +70,7 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
       title: shared === 'Klasik' ? 'Biraz daha özenli' : shared === 'Sokak stili' ? 'Sokağın ritmi' : accents.size === 0 ? 'Sade bir uyum' : 'Günün iyi fikri',
       reason: `${shared ? `${shared} çizgideki parçalar` : 'Farklı tarzlardan parçalar'} ${accents.size <= 1 ? 'sakin bir renk dengesiyle' : 'renkli bir eşleşmeyle'} bir arada. ${familiar ? 'Seçtiğin tarzlara yakın.' : 'Alıştığın çizginin biraz dışında bir deneme.'}` };
     return { outfit, score };
-  }).filter(entry => !rejectedIds.has(entry.outfit.id)).sort((a, b) => b.score - a.score || a.outfit.id.localeCompare(b.outfit.id));
+  }).filter(entry => !rejectedIds.has(entry.outfit.id) && (!options.pinned || entry.outfit.itemIds.includes(options.pinned))).sort((a, b) => b.score - a.score || a.outfit.id.localeCompare(b.outfit.id));
   const selected: Outfit[] = [];
   const reused = new Map<string, number>();
   while (ranked.length && selected.length < 12) {
@@ -84,7 +88,7 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
   return selected;
 }
 export function removeItem(data: AppData, id: string): AppData {
-  return { ...data, items: data.items.filter(item => item.id !== id), saved: data.saved.filter(outfit => !outfit.itemIds.includes(id)), rejected: [] };
+  return { ...data, items: data.items.filter(item => item.id !== id), saved: data.saved.filter(outfit => !outfit.itemIds.includes(id)), rejected: [], trips: data.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(id)) })) };
 }
 
 export function styleAffinity(feedback: Feedback[] = []): Partial<Record<Style, number>> {
@@ -92,18 +96,19 @@ export function styleAffinity(feedback: Feedback[] = []): Partial<Record<Style, 
   // One outfit is one signal, regardless of how many style tags its pieces carry.
   // Rejections are weak evidence: the disliked part may be color or fit, not style.
   for (const vote of feedback) {
+    if (!vote.liked && vote.reason && vote.reason !== 'Tarz') continue;
     const styles = [...new Set(vote.styles)];
     for (const style of styles) weights[style] = (weights[style] ?? 0) + (vote.liked ? 1 : -0.15) / styles.length;
   }
   for (const style of STYLES) weights[style] = Math.max(-3, Math.min(5, weights[style] ?? 0));
   return weights;
 }
-export function rateOutfit(data: AppData, outfit: Outfit, liked: boolean): AppData {
+export function rateOutfit(data: AppData, outfit: Outfit, liked: boolean, reason?: string): AppData {
   const styles = [...new Set(data.items.filter(item => outfit.itemIds.includes(item.id)).flatMap(item => item.styles))];
   return { ...data,
     saved: [...(liked ? [outfit] : []), ...data.saved.filter(entry => entry.id !== outfit.id)],
     rejected: [...data.rejected.filter(id => id !== outfit.id), ...(!liked ? [outfit.id] : [])],
-    feedback: [...(data.feedback ?? []).filter(vote => vote.id !== outfit.id), { id: outfit.id, styles, liked }].slice(-200),
+    feedback: [...(data.feedback ?? []).filter(vote => vote.id !== outfit.id), { id: outfit.id, styles, liked, reason }].slice(-200),
   };
 }
 
@@ -120,12 +125,19 @@ const FITS: Fit[] = ['Dar', 'Düz', 'Bol'];
 const isGarment = (item: any) =>
   !!item && typeof item.id === 'string' && typeof item.name === 'string' && CATEGORIES.includes(item.category) &&
   typeof item.color === 'string' && typeof item.colorName === 'string' && FITS.includes(item.fit) &&
-  Array.isArray(item.styles) && Array.isArray(item.occasions);
+  Array.isArray(item.styles) && Array.isArray(item.occasions) &&
+  (item.brush === undefined || (Array.isArray(item.brush) && item.brush.length <= 100 && item.brush.every((stroke: any) => typeof stroke.points === 'string' && stroke.points.length <= 18000 && /^[ML0-9. ,]+$/.test(stroke.points) && Number.isFinite(stroke.width) && stroke.width > 0 && stroke.width <= 100 && typeof stroke.restore === 'boolean'))) &&
+  (item.secondImage === undefined || typeof item.secondImage === 'string') &&
+  (item.laundry === undefined || typeof item.laundry === 'boolean') &&
+  (item.lastWorn === undefined || (typeof item.lastWorn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.lastWorn))) &&
+  (item.wearCount === undefined || (Number.isInteger(item.wearCount) && item.wearCount >= 0));
 const isStoredData = (data: any, version: number) =>
   !!data && data.version === version && Array.isArray(data.items) && data.items.every(isGarment) &&
   Array.isArray(data.preferences?.styles) && Array.isArray(data.preferences?.fits) &&
   Array.isArray(data.saved) && data.saved.every((outfit: any) => !!outfit && typeof outfit.id === 'string' && Array.isArray(outfit.itemIds)) &&
-  Array.isArray(data.rejected);
+  Array.isArray(data.rejected) &&
+  (data.trips === undefined || (Array.isArray(data.trips) && data.trips.every((trip: any) => typeof trip.id === 'string' && typeof trip.name === 'string' && Array.isArray(trip.outfits) && trip.outfits.every((outfit: any) => Array.isArray(outfit.itemIds) && outfit.itemIds.every((id: any) => typeof id === 'string'))))) &&
+  (data.profile?.collections === undefined || (Array.isArray(data.profile.collections) && data.profile.collections.every((value: any) => typeof value === 'string')));
 
 export type StoredRead = { data: AppData; notice?: string; preserved?: string };
 

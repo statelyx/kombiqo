@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Preferences, Profile, STYLES, Style, toggleValue, validateAge } from './domain';
+import { Preferences, Profile, STYLES, Style, OCCASIONS, Occasion, toggleValue, validateAge } from './domain';
 import { C } from './theme';
 // Curated clothing brands appearing in Dolap's public catalogue; no affiliation.
 export const BRANDS = ['Adidas', 'Bershka', 'Beymen', 'Colin’s', 'Columbia', 'DeFacto', 'Derimod', 'Diesel', 'H&M', 'İpekyol', 'Jack & Jones', 'Koton', 'Lacoste', 'LC Waikiki', 'Levi’s', 'Mango', 'Massimo Dutti', 'Mavi', 'Network', 'New Balance', 'Nike', 'Oysho', 'Pull & Bear', 'Puma', 'Reebok', 'Skechers', 'Stradivarius', 'The North Face', 'Tommy Hilfiger', 'Trendyolmilla', 'Under Armour', 'U.S. Polo Assn.', 'Vakko', 'Zara'];
@@ -19,17 +19,25 @@ export function ProfileEditor({ profile, preferences, onSave }: { profile?: Prof
   const [gender, setGender] = useState(profile?.gender ?? 'Belirtmek istemiyorum');
   const [brands, setBrands] = useState(profile?.brands ?? []);
   const [styles, setStyles] = useState<Style[]>(preferences.styles);
+  const [collections, setCollections] = useState(profile?.collections ?? []);
+  const [coverage, setCoverage] = useState(profile?.coverage ?? 'Fark etmez');
+  const [occasions, setOccasions] = useState<Occasion[]>(profile?.occasions ?? []);
+  const [mannequin, setMannequin] = useState(profile?.mannequin ?? (profile?.gender === 'Kadın' ? 'Kadın' : profile?.gender === 'Erkek' ? 'Erkek' : 'Nötr'));
   const [error, setError] = useState('');
   function submit() {
     const ageProblem = validateAge(age);
     if (ageProblem) { setError(ageProblem); return; }
     if (!styles.length) { setError('En az bir tarz seç.'); return; }
-    onSave({ name: name.trim(), age: age ? Number(age) : undefined, gender, brands }, styles);
+    onSave({ name: name.trim(), age: age ? Number(age) : undefined, gender, brands, collections, coverage, occasions, mannequin }, styles);
   }
   return <Modal visible animationType="slide" onRequestClose={submit}><SafeAreaView style={s.page}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content, { flex: undefined }]}><Text style={s.kicker}>SANA AİT BİR BAŞLANGIÇ</Text><Text style={s.title}>Seni biraz tanıyalım.</Text><Text style={s.text}>Seçtiklerin ilk önerileri şekillendirir. Kaydırdıkça birlikte keşfederiz.</Text>
     <Text style={s.label}>Adın veya takma adın</Text><TextInput accessibilityLabel="Adın veya takma adın" value={name} onChangeText={setName} maxLength={40} placeholder="Sana nasıl seslenelim?" style={s.input} />
     <Text style={s.label}>Yaşın · isteğe bağlı</Text><TextInput accessibilityLabel="Yaşın" value={age} onChangeText={setAge} keyboardType="number-pad" maxLength={3} placeholder="Boş bırakabilirsin" style={s.input} />
     <SelectList label="Cinsiyetin" options={['Kadın', 'Erkek', 'Nonbinary', 'Belirtmek istemiyorum']} values={[gender]} onChange={v => setGender(v[0])} />
+    <SelectList label="Öneri koleksiyonları · isteğe bağlı" options={['Kadın', 'Erkek', 'Unisex']} values={collections} multiple onChange={setCollections} />
+    <SelectList label="Örtücülük tercihin" options={['Fark etmez', 'Daha örtücü']} values={[coverage]} onChange={v => setCoverage(v[0])} />
+    <SelectList label="Sık giyindiğin ortamlar" options={OCCASIONS} values={occasions} multiple onChange={v => setOccasions(v as Occasion[])} />
+    <SelectList label="Varsayılan manken" options={['Kadın', 'Erkek', 'Nötr']} values={[mannequin]} onChange={v => setMannequin(v[0])} />
     <SelectList label="Sana yakın tarzlar" options={STYLES} values={styles} multiple onChange={v => setStyles(v as Style[])} />
     <SelectList label="Alışveriş yaptığın markalar" options={BRANDS} values={brands} multiple custom onChange={setBrands} />
     <Text style={[s.text, { marginVertical: 20, fontSize: 12 }]}>Bilgilerin bu cihazda kalır. Yaş ve cinsiyet tarzlarını sınırlandırmaz. Marka ve tarz seçimlerini sonra değiştirebilirsin.</Text>{!!error && <Text style={{ color: C.warningText }}>{error}</Text>}<Pressable accessibilityRole="button" style={s.button} onPress={submit}><Text style={s.white}>Tarzımı keşfet</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView></Modal>;

@@ -18,6 +18,10 @@ import { persistPhoto } from './photos';
 import { backupFilesAvailable, pickBackupText, writeBackupFile } from './backup';
 import { cutoutAvailable, cutoutHint, removeBackground } from './cutout';
 import { C, SERIF } from './theme';
+import { PhotoBrush } from './photo-brush';
+import { SUBTYPES, markWorn } from './wardrobe-tools';
+import { WardrobeHub } from './wardrobe-hub';
+import { OutfitWorkshop } from './outfit-workshop';
 import { SmartAdd } from './smart-add';
 
 type Tab = 'wardrobe' | 'ideas' | 'saved' | 'profile';
@@ -53,10 +57,12 @@ function Main() {
   const [confirm, setConfirm] = useState<{ title: string; body: string; action: () => void } | null>(null);
   const [editProfile, setEditProfile] = useState(false);
   const [undo, setUndo] = useState<Pick<AppData, 'saved' | 'rejected' | 'feedback'> | null>(null);
+  const [workshop, setWorkshop] = useState<Outfit | null>(null);
+  const [pinned, setPinned] = useState<string>();
   const [offset, setOffset] = useState(0);
   const scroll = useRef<ScrollView>(null);
   const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; loadData().then(value => { if (!mounted.current) return; setData(value); setReady(true); const message = takeLoadNotice(); if (message) setLoadWarning(message); }).catch(() => { if (mounted.current) setLoadError(true); }); return () => { mounted.current = false; }; }, []);
+  useEffect(() => { mounted.current = true; loadData().then(value => { if (!mounted.current) return; setData(value); if (value.profile?.occasions?.[0]) setOccasion(value.profile.occasions[0]); setReady(true); const message = takeLoadNotice(); if (message) setLoadWarning(message); }).catch(() => { if (mounted.current) setLoadError(true); }); return () => { mounted.current = false; }; }, []);
   useEffect(() => {
     let active = true;
     if (ready) saveData(data).then(() => { if (active) setSaveError(false); }).catch(() => { if (active) setSaveError(true); });
@@ -64,7 +70,7 @@ function Main() {
   }, [data, ready, saveAttempt]);
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(''), 6000); return () => clearTimeout(timer); }, [notice]);
   useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [tab]);
-  const ideas = useMemo(() => recommend(data.items, data.preferences, occasion, data.saved, [...data.rejected, ...data.saved.map(entry => entry.id)], data.feedback, data.profile?.brands), [data, occasion]);
+  const ideas = useMemo(() => recommend(data.items, data.preferences, occasion, data.saved, [...data.rejected, ...data.saved.map(entry => entry.id)], data.feedback, data.profile?.brands, { pinned, profile: data.profile }), [data, occasion, pinned]);
   const visibleIdeas = ideas.length ? [...ideas.slice(offset % ideas.length), ...ideas.slice(0, offset % ideas.length)].slice(0, 3) : [];
   // A single pass over the wardrobe, grouped by category, replaces per-rail rescans.
   const rails = useMemo(() => {
@@ -135,25 +141,28 @@ function Main() {
         </>}
       </>}
       {tab === 'ideas' && <>
+        <SelectList label="Bu parçayla kombin yap" options={['Serbest', ...data.items.filter(item => !item.laundry).map(item => `${item.name} · ${item.id}`)]} values={[pinned ? `${data.items.find(item => item.id === pinned)?.name} · ${pinned}` : 'Serbest']} onChange={v => { setPinned(v[0] === 'Serbest' ? undefined : v[0].split(' · ').pop()); setOffset(0); }} />
         <Text style={s.eyebrow}>BİRAZ İLHAM, TAMAMEN SEN.</Text><Text style={s.title}>Bugünün olasılıkları.</Text><Text style={s.body}>Sağa kaydır, kaydet. Sola kaydır, geç. Beğenilerin sonraki eşleşmeleri şekillendirsin.</Text>
         <View style={[s.chips, { marginTop: 24 }]}>{OCCASIONS.map(value => <Chip key={value} label={value} selected={occasion === value} onPress={() => { setOccasion(value); setOffset(0); }} />)}</View>
         <View style={s.sectionRow}><Text style={s.meta}>{ideas.length} eşleşme · {data.preferences.styles.join(' / ')}</Text><Pressable accessibilityRole="button" accessibilityLabel="Farklı kombinler göster" onPress={() => setOffset(value => value + 1)}><Icon name="shuffle-outline" color={C.coral} /></Pressable></View>
         {!visibleIdeas.length && <Empty title={data.rejected.length ? 'Yeni bir başlangıç yapalım' : data.saved.length ? 'Bu tur tamamlandı' : 'Birkaç parça daha lazım'} body={`${occasion} için işaretlenmiş bir üst, bir alt (veya elbise) ve ayakkabı ekle. Kıyafetlerin kullanım alanlarını da düzenleyebilirsin.`} action={data.rejected.length ? 'Gizlenen önerileri geri getir' : 'Gardırobuma git'} onPress={() => data.rejected.length ? setData(previous => ({ ...previous, rejected: [] })) : changeTab('wardrobe')} icon="sparkles-outline" />}
-        {visibleIdeas[0] && <SwipeCard key={visibleIdeas[0].id} onRate={liked => vote(visibleIdeas[0], liked)}><OutfitCard outfit={visibleIdeas[0]} items={data.items} index={0} saved={false} onSave={() => vote(visibleIdeas[0], true)} /></SwipeCard>}
+        {visibleIdeas[0] && <SwipeCard key={visibleIdeas[0].id} onRate={liked => vote(visibleIdeas[0], liked)}><OutfitCard outfit={visibleIdeas[0]} items={data.items} index={0} saved={false} onOpen={() => setWorkshop(visibleIdeas[0])} onSave={() => vote(visibleIdeas[0], true)} /></SwipeCard>}
         {undo && <Button secondary label="Son kaydırmayı geri al" icon="arrow-undo-outline" onPress={() => { setData(previous => ({ ...previous, ...undo })); setUndo(null); setOffset(0); }} />}
+        {data.feedback?.length && data.feedback[data.feedback.length - 1].liked === false ? <SelectList label="Son öneriyi neden geçtin? · isteğe bağlı" options={['Tarz', 'Renk', 'Kesim', 'Fazla açık', 'Fazla kapalı', 'Fazla resmi']} values={data.feedback[data.feedback.length - 1].reason ? [data.feedback[data.feedback.length - 1].reason!] : []} onChange={values => setData(previous => ({ ...previous, feedback: previous.feedback?.map((vote, index, all) => index === all.length - 1 ? { ...vote, reason: values[0] } : vote) }))} /> : null}
         <Text style={[s.fine, { marginTop: 22 }]}>Kombinler renk, kesim ve tercihlerine göre cihazında hazırlanır.</Text>
       </>}
       {tab === 'saved' && <>
         <Text style={s.eyebrow}>TEKRAR GİYMEYE DEĞER.</Text><Text style={s.title}>İyi fikirlerin burada.</Text><Text style={s.body}>{data.saved.length} kayıtlı kombin · Bir sonraki güne hazır.</Text>
-        {!data.saved.length ? <Empty title="İlk favorin seni bekliyor" body="Beğendiğin kombindeki yer imi simgesine dokun. Sonra burada kolayca bul." action="Kombinleri keşfet" onPress={() => changeTab('ideas')} icon="bookmark-outline" /> : data.saved.map((outfit, index) => <OutfitCard key={outfit.id} outfit={outfit} items={data.items} index={index} saved onSave={() => saveOutfit(outfit)} />)}
+        {!data.saved.length ? <Empty title="İlk favorin seni bekliyor" body="Beğendiğin kombindeki yer imi simgesine dokun. Sonra burada kolayca bul." action="Kombinleri keşfet" onPress={() => changeTab('ideas')} icon="bookmark-outline" /> : data.saved.map((outfit, index) => <OutfitCard key={outfit.id} outfit={outfit} items={data.items} index={index} saved onOpen={() => setWorkshop(outfit)} onSave={() => saveOutfit(outfit)} />)}
       </>}
       {tab === 'profile' && <>
+        <WardrobeHub data={data} onChange={setData} onSelect={item => { setPinned(item.id); changeTab('ideas'); }} />
         <Text style={s.eyebrow}>BİR KALIBA SIĞMAK ZORUNDA DEĞİLSİN.</Text><Text style={s.title}>Tarzın, senin kuralların.</Text><Text style={s.body}>Bugün sade, yarın biraz daha cesur. Birden fazla tarz seçebilirsin.</Text>
         <View style={s.panel}><Text style={s.sectionTitle}>{data.profile?.name ? `Merhaba ${data.profile.name}` : 'Kişisel profilin'}</Text><Text style={s.body}>{data.profile?.brands.length ? data.profile.brands.join(' · ') : 'Markalarını seçerek başlayabilirsin.'}</Text><Button secondary label="Profilimi düzenle" onPress={() => setEditProfile(true)} /><Text style={s.meta}>{(data.feedback ?? []).length} değerlendirme · Beğenilerinde öne çıkan: {Object.entries(styleAffinity(data.feedback)).filter(([, weight]) => weight > 0).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([style]) => style).join(' / ') || 'Henüz keşfediyoruz'}</Text>{!!data.feedback?.length && <Button secondary label="Öğrenilen tercihleri sıfırla" onPress={() => { setData(previous => ({ ...previous, feedback: [] })); setUndo(null); }} />}</View>
         <View style={s.panel}><Text style={s.sectionTitle}>Sana yakın olanlar</Text><Text style={s.meta}>En az bir tarz seç.</Text><View style={s.wrap}>{STYLES.map(value => <Chip key={value} label={value} selected={data.preferences.styles.includes(value)} onPress={() => { const styles = toggleValue(data.preferences.styles, value); if (styles.length) setData(previous => ({ ...previous, preferences: { ...previous.preferences, styles } })); }} />)}</View></View>
         <View style={s.panel}><Text style={s.sectionTitle}>Nasıl bir kesim?</Text><Text style={s.meta}>Rahat hissettiğin seçenekler öne çıksın.</Text><View style={s.wrap}>{(['Dar', 'Düz', 'Bol'] as Fit[]).map(value => <Chip key={value} label={value} selected={data.preferences.fits.includes(value)} onPress={() => { const fits = toggleValue(data.preferences.fits, value); if (fits.length) setData(previous => ({ ...previous, preferences: { ...previous.preferences, fits } })); }} />)}</View></View>
         <View style={[s.panel, s.row]}><View style={{ flex: 1 }}><Text style={s.sectionTitle}>Biraz şaşırt beni</Text><Text style={s.body}>Tarzına yakın önerilerin yanına farklı eşleşmeler de ekle.</Text></View><Switch accessibilityLabel="Yeni tarzlar keşfet" value={data.preferences.exploration} onValueChange={exploration => setData(previous => ({ ...previous, preferences: { ...previous.preferences, exploration } }))} trackColor={{ true: C.green, false: C.line }} thumbColor={C.white} /></View>
-        <View style={s.panel}><View style={s.row}><Icon name="lock-closed-outline" color={C.green} /><Text style={s.sectionTitle}>Gardırobun sende kalsın.</Text></View><Text style={s.body}>Bu sürümde fotoğrafların bir sunucuya gönderilmez. Kayıtlar bu cihazdadır; uygulamayı silersen kaybolabilir.</Text><Text style={s.fine}>Kombiqo 0.3 · Kişisel gardırobun</Text></View>
+        <View style={s.panel}><View style={s.row}><Icon name="lock-closed-outline" color={C.green} /><Text style={s.sectionTitle}>Gardırobun sende kalsın.</Text></View><Text style={s.body}>Fotoğrafların, yalnızca çevrimiçi incelemeye izin verirsen analiz servisine gönderilir. Kayıtlar bu cihazdadır; uygulamayı silersen kaybolabilir.</Text><Text style={s.fine}>Kombiqo 0.3 · Kişisel gardırobun</Text></View>
         <View style={s.panel}><View style={s.row}><Icon name="shield-checkmark-outline" color={C.green} /><Text style={s.sectionTitle}>Yedekleme</Text></View><Text style={s.body}>Kayıtların yalnızca bu cihazda. Telefon değiştirmeden veya uygulamayı silmeden önce yedek alman iyi olur.</Text><Button secondary label="Yedeği panoya kopyala" icon="copy-outline" onPress={copyBackup} /><Button secondary label="Panodaki yedeği geri yükle" icon="clipboard-outline" onPress={restoreFromClipboard} />{backupFilesAvailable ? <><Button secondary label="Yedek dosyası oluştur" icon="download-outline" onPress={exportBackup} /><Button secondary label="Yedek dosyasından geri yükle" icon="folder-open-outline" onPress={restoreFromFile} /></> : null}{backupPath ? <Text style={s.fine}>Yedek dosyası hazır: {backupPath}</Text> : null}<Text style={s.fine}>Yedek, gardırobunun tamamını içeren bir metindir. Geri yükleme mevcut gardırobunun yerini alır; önce yedek almanı öneririz.</Text></View>
         {data.rejected.length > 0 && <Button secondary label={`${data.rejected.length} gizlenen öneriyi geri getir`} onPress={() => { setData(previous => ({ ...previous, rejected: [] })); setNotice('Gizlenen öneriler geri getirildi.'); }} />}
         {demo && <Button secondary label="Örnek parçaları kaldır" onPress={() => setConfirm({ title: 'Örnek gardırop kaldırılsın mı?', body: 'Kendi eklediğin parçalar kalacak. Örnek parçaları içeren kayıtlı kombinler de kaldırılacak.', action: () => setData(previous => ({ ...previous, items: previous.items.filter(item => !item.demo), saved: previous.saved.filter(outfit => outfit.itemIds.every(id => !previous.items.find(item => item.id === id)?.demo)), rejected: [] })) })} />}
@@ -163,14 +172,15 @@ function Main() {
     <View style={s.nav}>{NAV.map(entry => <Pressable key={entry.id} onPress={() => changeTab(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === entry.id }} style={s.navItem}><View style={[s.navIcon, tab === entry.id && s.navIconActive]}><Icon name={entry.icon} color={tab === entry.id ? C.coral : C.muted} size={22} /></View><Text style={[s.navText, tab === entry.id && { color: C.coral }]}>{entry.label}</Text></Pressable>)}</View>
   </View>
   {(!data.profile || editProfile) && <ProfileEditor profile={data.profile} preferences={data.preferences} onSave={(profile, styles) => { setData(previous => ({ ...previous, profile, preferences: { ...previous.preferences, styles } })); setEditProfile(false); }} />}
-  {editor && <GarmentEditor item={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} onSave={item => { setData(previous => ({ ...previous, onboarded: true, items: previous.items.some(entry => entry.id === item.id) ? previous.items.map(entry => entry.id === item.id ? item : entry) : [...previous.items, item], saved: previous.saved.filter(outfit => !outfit.itemIds.includes(item.id)), rejected: [] })); setEditor(null); setNotice('Parçan gardıroba eklendi.'); }} onDelete={editor === 'new' ? undefined : () => { const item = editor; setEditor(null); setConfirm({ title: 'Bu parça kaldırılsın mı?', body: 'Bu parçayı içeren kayıtlı kombinler de kaldırılacak.', action: () => setData(previous => removeItem(previous, item.id)) }); }} />}
+  {workshop && <OutfitWorkshop outfit={workshop} data={data} onClose={() => setWorkshop(null)} onSave={outfit => { setData(previous => ({ ...previous, saved: [outfit, ...previous.saved.filter(entry => entry.id !== outfit.id)], rejected: previous.rejected.filter(id => id !== outfit.id) })); setNotice('Kombin kaydedildi.'); setWorkshop(null); }} onWear={outfit => { setData(previous => markWorn(previous, outfit)); setNotice('Bugün giydiklerin kaydedildi.'); }} />}
+  {editor && <GarmentEditor item={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} onSave={item => { setData(previous => ({ ...previous, onboarded: true, items: previous.items.some(entry => entry.id === item.id) ? previous.items.map(entry => entry.id === item.id ? item : entry) : [...previous.items, item], saved: previous.saved.filter(outfit => !outfit.itemIds.includes(item.id)), trips: previous.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(item.id)) })), rejected: [] })); setEditor(null); setNotice('Parçan gardıroba eklendi.'); }} onDelete={editor === 'new' ? undefined : () => { const item = editor; setEditor(null); setConfirm({ title: 'Bu parça kaldırılsın mı?', body: 'Bu parçayı içeren kayıtlı kombinler de kaldırılacak.', action: () => setData(previous => removeItem(previous, item.id)) }); }} />}
   <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}><View style={s.backdrop}><View style={s.confirm}><Text style={s.sectionTitle}>{confirm?.title}</Text><Text style={s.body}>{confirm?.body}</Text><Button label="Kaldır" onPress={() => { confirm?.action(); setConfirm(null); }} /><Button secondary label="Vazgeç" onPress={() => setConfirm(null)} /></View></View></Modal>
   </SafeAreaView>;
 }
 
-function OutfitCard({ outfit, items, index, saved, onSave, onReject }: { outfit: Outfit; items: Garment[]; index: number; saved: boolean; onSave: () => void; onReject?: () => void }) {
+function OutfitCard({ outfit, items, index, saved, onSave, onReject, onOpen }: { outfit: Outfit; items: Garment[]; index: number; saved: boolean; onSave: () => void; onReject?: () => void; onOpen?: () => void }) {
   const parts = outfit.itemIds.map(id => items.find(item => item.id === id)).filter((item): item is Garment => !!item);
-  return <View style={s.outfitCard}><View style={s.sectionRow}><Text style={s.eyebrow}>EŞLEŞME {String(index + 1).padStart(2, '0')} · {outfit.occasion.toLocaleUpperCase('tr')}</Text><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Kombini kayıtlardan çıkar' : 'Kombini kaydet'} onPress={onSave} style={s.iconButton}><Icon name={saved ? 'bookmark' : 'bookmark-outline'} color={C.coral} /></Pressable></View><OutfitComposition parts={parts} /><View style={s.palette}>{parts.map(item => <View key={item.id} style={[s.paletteDot, { backgroundColor: item.color }]} />)}</View><Text style={s.outfitTitle}>{outfit.title}</Text><Text style={s.body}>{outfit.reason}</Text><Text style={s.outfitParts}>{parts.map(item => item.name).join(' + ')}</Text>{onReject && <Pressable accessibilityRole="button" onPress={onReject} style={s.reject}><Text style={s.meta}>Bu eşleşme bana göre değil</Text><Icon name="close-outline" size={17} color={C.muted} /></Pressable>}</View>;
+  return <View style={s.outfitCard}><View style={s.sectionRow}><Text style={s.eyebrow}>EŞLEŞME {String(index + 1).padStart(2, '0')} · {outfit.occasion.toLocaleUpperCase('tr')}</Text><Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Kombini kayıtlardan çıkar' : 'Kombini kaydet'} onPress={onSave} style={s.iconButton}><Icon name={saved ? 'bookmark' : 'bookmark-outline'} color={C.coral} /></Pressable></View><OutfitComposition parts={parts} />{onOpen && <Button secondary label="Düzenle · mankende gör" onPress={onOpen} />}<View style={s.palette}>{parts.map(item => <View key={item.id} style={[s.paletteDot, { backgroundColor: item.color }]} />)}</View><Text style={s.outfitTitle}>{outfit.title}</Text><Text style={s.body}>{outfit.reason}</Text><Text style={s.outfitParts}>{parts.map(item => item.name).join(' + ')}</Text>{onReject && <Pressable accessibilityRole="button" onPress={onReject} style={s.reject}><Text style={s.meta}>Bu eşleşme bana göre değil</Text><Icon name="close-outline" size={17} color={C.muted} /></Pressable>}</View>;
 }
 
 function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; onClose: () => void; onSave: (item: Garment) => void; onDelete?: () => void }) {
@@ -181,6 +191,18 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
   const [fit, setFit] = useState<Fit>(item?.fit ?? 'Düz');
   const [styles, setStyles] = useState<Style[]>(item?.styles ?? ['Minimal']);
   const [occasions, setOccasions] = useState<Occasion[]>(item?.occasions ?? ['Günlük']);
+  const [subtype, setSubtype] = useState(item?.subtype ?? '');
+  const [collection, setCollection] = useState(item?.collection ?? 'Unisex');
+  const [coverage, setCoverage] = useState(item?.coverage ?? 'Belirtilmedi');
+  const [backdrop, setBackdrop] = useState(item?.backdrop ?? 'Krem');
+  const [laundry, setLaundry] = useState(item?.laundry ?? false);
+  const [brush, setBrush] = useState(item?.brush ?? []);
+  const [brushOpen, setBrushOpen] = useState(false);
+  const [photoType, setPhotoType] = useState('Düz zeminde');
+  const [secondOriginal, setSecondOriginal] = useState(item?.secondOriginal);
+  const [secondCutout, setSecondCutout] = useState(item?.secondCutout ?? false);
+  const [secondImage, setSecondImage] = useState(item?.secondImage);
+  const [preferredAngle, setPreferredAngle] = useState<'main' | 'second'>(item?.preferredAngle ?? 'main');
   const [photo, setPhoto] = useState(item?.image);
   const [originalPhoto, setOriginalPhoto] = useState(item?.originalImage ?? item?.image);
   const [cleanedPhoto, setCleanedPhoto] = useState(item?.cutout ? item.image : undefined);
@@ -188,16 +210,16 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function prepareProductPhoto(next: string) {
-    setPhoto(next); setOriginalPhoto(next); setCleanedPhoto(undefined); setIsCutout(false);
-    if (!cutoutAvailable) return;
+    setPhoto(next); setOriginalPhoto(next); setCleanedPhoto(undefined); setIsCutout(false); setBrush([]); setPreferredAngle('main');
+    if (!cutoutAvailable || photoType === 'Kişi üzerinde') return;
     try {
       const cleaned = await removeBackground(next);
-      setCleanedPhoto(cleaned); setPhoto(cleaned); setIsCutout(true);
+      setCleanedPhoto(cleaned);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Ürün ayrılamadı. Orijinal fotoğrafın korundu.');
     }
   }
-  async function pickPhoto(camera = false) {
+  async function pickPhoto(camera = false, second = false) {
     setError(''); setBusy(true);
     try {
       if (camera) {
@@ -210,7 +232,7 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
         const resized = await ImageManipulator.manipulateAsync(result.assets[0].uri, [{ resize: { width: Math.min(result.assets[0].width, 1280) } }], { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true });
         if (!resized.base64) throw new Error('Fotoğraf okunamadı.');
         const next = `data:image/jpeg;base64,${resized.base64}`;
-        await prepareProductPhoto(next);
+        if (second) { setSecondImage(next); setSecondOriginal(next); setSecondCutout(false); } else await prepareProductPhoto(next);
       }
     } catch { setError('Fotoğraf açılamadı. Fotoğraf erişimini kontrol edip tekrar dene.'); }
     finally { setBusy(false); }
@@ -233,21 +255,23 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
     setBusy(true); setError('');
     try {
       const cleaned = await removeBackground(originalPhoto);
-      setCleanedPhoto(cleaned); setPhoto(cleaned); setIsCutout(true);
+      setCleanedPhoto(cleaned);
     } catch (error) { setError(error instanceof Error ? error.message : 'Temizleme tamamlanamadı. Orijinal fotoğrafın korundu.'); }
     finally { setBusy(false); }
   }
-  const preview: Garment = { id: 'preview', brand: brand || undefined, name: name || 'Yeni parça', category, color: color.hex, colorName: color.name, fit, styles, occasions, image: photo, cutout: isCutout };
+  const preview: Garment = { id: 'preview', brand: brand || undefined, name: name || 'Yeni parça', category, color: color.hex, colorName: color.name, fit, styles, occasions, image: photo, cutout: isCutout, subtype: SUBTYPES[category].includes(subtype) ? subtype : undefined, collection, coverage, backdrop, brush, secondImage, secondOriginal, secondCutout, preferredAngle, laundry, lastWorn: item?.lastWorn, wearCount: item?.wearCount };
   function submit() {
     if (!name.trim()) { setError('Parçana bir isim ver.'); return; }
     if (!styles.length || !occasions.length) { setError('En az bir tarz ve kullanım alanı seç.'); return; }
     try {
       const image = persistPhoto(photo);
       const originalImage = isCutout ? persistPhoto(originalPhoto) : undefined;
-      onSave({ ...preview, image, originalImage, id: item?.id ?? `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: name.trim(), demo: item?.demo });
+      onSave({ ...preview, image, originalImage, secondImage: persistPhoto(secondImage), secondOriginal: persistPhoto(secondOriginal), id: item?.id ?? `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: name.trim(), demo: item?.demo });
     } catch { setError('Fotoğraf kaydedilemedi. Cihazındaki boş alanı kontrol edip tekrar dene.'); }
   }
   return <Modal visible animationType="slide" onRequestClose={onClose}><SafeAreaView style={s.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={[s.app, { flex: 1 }]}><View style={s.editorHeader}><Text style={s.sectionTitle}>{item ? 'Parçanı düzenle' : 'Gardırobuna ekle'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Kıyafet düzenleyiciyi kapat" onPress={onClose} style={s.iconButton}><Icon name="close" /></Pressable></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
+    <SelectList label="Fotoğraf türü" options={['Düz zeminde', 'Askıda', 'Mağaza görseli', 'Kişi üzerinde']} values={[photoType]} onChange={v => setPhotoType(v[0])} />
+    {photoType === 'Kişi üzerinde' && <Text style={s.fine}>Kişi üzerindeki fotoğraftan düz ve ütülü ürün üretilmez. Orijinali kullanabilir veya ürün fotoğrafı seçebilirsin.</Text>}
     <SmartAdd photo={photo} disabled={busy} onApply={fields => {
       if (fields.category) setCategory(fields.category);
       const detectedColor = COLORS.find(c => c.name === fields.colorName);
@@ -260,14 +284,22 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
     }} />
     <View style={s.photoPreview}><GarmentArt item={preview} size={180} hanger={isCutout} /><Text style={s.meta}>{photo ? 'Fotoğrafın hazır' : 'Fotoğraf ekleyebilir veya çizimle başlayabilirsin'}</Text></View><Button secondary label={busy ? 'Fotoğraf hazırlanıyor…' : photo ? 'Fotoğrafı değiştir' : 'Galeriden fotoğraf seç'} icon="image-outline" onPress={() => pickPhoto()} disabled={busy} />{Platform.OS !== 'web' && <Button secondary label="Kamerayla çek" icon="camera-outline" onPress={() => pickPhoto(true)} disabled={busy} />}
     <Button secondary label="Görsel yapıştır" icon="clipboard-outline" onPress={pastePhoto} disabled={busy} /><Text style={s.fine}>Zara veya başka bir mağazadan aldığın ürünün ekran görüntüsünü galeriden seçebilir, kopyaladığın görseli yapıştırabilirsin. Bağlantı yerine görsel kopyala; sayfa yazılarını kırparak daha temiz sonuç al.</Text>
-    <View style={s.panel}><Text style={s.sectionTitle}>Fotoğraf stüdyosu</Text><Text style={s.body}>Ürünü düz bir zeminde, tek başına ve tamamı görünecek şekilde çek. Desteklenen iPhone’da arka plan otomatik temizlenir; renk, logo ve kumaş detayları korunur. Kırışıklıklar veya görünmeyen bölümler yeniden çizilmez.</Text>
+    <View style={s.panel}><Text style={s.sectionTitle}>Fotoğraf stüdyosu</Text><Text style={s.body}>Ürünü düz bir zeminde, tek başına ve tamamı görünecek şekilde çek. Desteklenen iPhone’da temizleme önerisi hazırlanır; uygulamadan önce önizlemeyi kontrol et; renk, logo ve kumaş detayları korunur. Kırışıklıklar veya görünmeyen bölümler yeniden çizilmez.</Text>
     {cutoutAvailable ? <Button label={busy ? 'Fotoğraf işleniyor…' : 'Arka planı temizle'} icon="sparkles-outline" onPress={cleanPhoto} disabled={busy || !originalPhoto} /> : <Text style={s.fine}>{cutoutHint}</Text>}
-    {cleanedPhoto && <View style={s.wrap}><Chip label="Orijinal" selected={!isCutout} onPress={() => { if (!busy) { setPhoto(originalPhoto); setIsCutout(false); } }} /><Chip label="Temizlenmiş" selected={isCutout} onPress={() => { if (!busy) { setPhoto(cleanedPhoto); setIsCutout(true); } }} /></View>}
+    {cleanedPhoto && <View style={s.wrap}><Chip label="Orijinal" selected={!isCutout} onPress={() => { if (!busy) { setPhoto(originalPhoto); setIsCutout(false); setBrush([]); } }} /><Chip label="Temizlenmiş" selected={isCutout} onPress={() => { if (!busy) { setPhoto(cleanedPhoto); setIsCutout(true); setBrush([]); } }} /></View>}
+    <SelectList label="Stüdyo fonu" options={['Krem', 'Taş', 'Şeffaf']} values={[backdrop]} onChange={v => setBackdrop(v[0])} />
+    {photo && <Button secondary label="Fırçayla kenarları düzelt" disabled={busy} onPress={() => setBrushOpen(true)} />}
+    {brushOpen && photo && <PhotoBrush image={photo} initial={brush} onClose={() => setBrushOpen(false)} onSave={next => { setBrush(next); setBrushOpen(false); }} />}
     <Text style={s.fine}>Fotoğraf cihazında işlenir. Sonuç uygun değilse orijinali kaydedebilirsin.</Text></View>
-    {photo && <Pressable disabled={busy} onPress={() => { setPhoto(undefined); setOriginalPhoto(undefined); setCleanedPhoto(undefined); setIsCutout(false); }} accessibilityRole="button" style={s.reject}><Text style={s.meta}>Fotoğrafı kaldır</Text></Pressable>}
+    {photo && <Pressable disabled={busy} onPress={() => { setPhoto(undefined); setOriginalPhoto(undefined); setCleanedPhoto(undefined); setIsCutout(false); setBrush([]); }} accessibilityRole="button" style={s.reject}><Text style={s.meta}>Fotoğrafı kaldır</Text></Pressable>}
     <Text style={s.fieldLabel}>PARÇANIN ADI</Text><TextInput accessibilityLabel="Parçanın adı" value={name} onChangeText={setName} maxLength={60} placeholder="Örn. Mavi bol kesim gömlek" placeholderTextColor={C.muted} style={s.input} />
     <SelectList label="Marka · isteğe bağlı" options={BRANDS} values={brand ? [brand] : []} custom onChange={values => setBrand(values[0] ?? '')} />{!brand && <Text style={s.fine}>Marka: Bilinmiyor · İstersen seçebilir veya boş bırakabilirsin.</Text>}{!!brand && <Pressable accessibilityRole="button" onPress={() => setBrand('')} style={s.reject}><Text style={s.meta}>Markayı temizle</Text></Pressable>}
     <Text style={s.fieldLabel}>KATEGORİ</Text><View style={s.wrap}>{CATEGORIES.map(value => <Chip key={value} label={value} selected={category === value} onPress={() => setCategory(value)} />)}</View>
+    <SelectList label="Ürün türü" options={SUBTYPES[category]} values={SUBTYPES[category].includes(subtype) ? [subtype] : []} onChange={v => setSubtype(v[0])} />
+    <SelectList label="Koleksiyon" options={['Kadın', 'Erkek', 'Unisex']} values={[collection]} onChange={v => setCollection(v[0])} />
+    <SelectList label="Örtücülük" options={['Belirtilmedi', 'Örtücü', 'Açık']} values={[coverage]} onChange={v => setCoverage(v[0])} />
+    <View style={s.row}><Text style={s.body}>Çamaşırda · önerilerde kullanma</Text><Switch accessibilityLabel="Çamaşırda" value={laundry} onValueChange={setLaundry} /></View>
+    {category === 'Ayakkabılar' && <View style={s.panel}><Text style={s.sectionTitle}>İki açı, tek ayakkabı</Text><Text style={s.body}>Ana fotoğrafı dış yandan, ikinciyi önden çapraz ve hafif yukarıdan çek. Ayakkabının tamamı görünsün. İkinci fotoğraf isteğe bağlı.</Text><Button secondary label={secondImage ? 'İkinci açıyı değiştir' : 'İkinci açı ekle'} disabled={busy} onPress={() => pickPhoto(false, true)} />{secondImage && <><View style={s.wrap}><Chip label="Yan açı" selected={preferredAngle === 'main'} onPress={() => setPreferredAngle('main')} /><Chip label="Çapraz açı" selected={preferredAngle === 'second'} onPress={() => setPreferredAngle('second')} /></View>{cutoutAvailable && <Button secondary label="İkinci açının arka planını temizle" disabled={busy} onPress={async () => { setBusy(true); try { setSecondImage(await removeBackground(secondOriginal ?? secondImage)); setSecondCutout(true); setPreferredAngle('second'); } catch { setError('İkinci açı temizlenemedi; orijinal korundu.'); } finally { setBusy(false); } }} />}{secondCutout && <Button secondary label="İkinci açının orijinaline dön" onPress={() => { setSecondImage(secondOriginal); setSecondCutout(false); }} />}<Button secondary label="İkinci açıyı kaldır" onPress={() => { setSecondImage(undefined); setSecondOriginal(undefined); setSecondCutout(false); setPreferredAngle('main'); }} /></>}</View>}
     <Text style={s.fieldLabel}>ANA RENK · {color.name.toLocaleUpperCase('tr')}</Text><View style={s.wrap}>{COLORS.map(value => <Pressable key={value.name} accessibilityRole="button" accessibilityLabel={value.name} accessibilityState={{ selected: color.name === value.name }} onPress={() => setColor(value)} style={[s.colorButton, { backgroundColor: value.hex }, color.name === value.name && { borderColor: C.coral, borderWidth: 3 }]}>{color.name === value.name && <Icon name="checkmark" size={18} color={value.name === 'Siyah' || value.name === 'Bordo' || value.name === 'Lacivert' ? C.white : C.ink} />}</Pressable>)}</View>
     <Text style={s.fieldLabel}>KESİM</Text><View style={s.wrap}>{(['Dar', 'Düz', 'Bol'] as Fit[]).map(value => <Chip key={value} label={value} selected={fit === value} onPress={() => setFit(value)} />)}</View>
     <Text style={s.fieldLabel}>HANGİ TARZLARA YAKIN?</Text><View style={s.wrap}>{STYLES.map(value => <Chip key={value} label={value} selected={styles.includes(value)} onPress={() => setStyles(toggleValue(styles, value))} />)}</View>
