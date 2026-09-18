@@ -16,7 +16,7 @@ export function replacePiece(outfit: Outfit, oldId: string, replacement: Garment
   const old = items.find(item => item.id === oldId);
   if (!old || old.category !== replacement.category || !available(replacement, profile) || !replacement.occasions.includes(outfit.occasion)) return outfit;
   const itemIds = outfit.itemIds.map(id => id === oldId ? replacement.id : id);
-  return { ...outfit, id: outfitId(itemIds, outfit.occasion), itemIds, title: 'Senin dokunuşun', reason: 'Seçtiğin parçalarla düzenlendi.' };
+  return { ...outfit, layout: outfit.layout?.[oldId] ? { ...outfit.layout, [replacement.id]: outfit.layout[oldId] } : outfit.layout, id: outfitId(itemIds, outfit.occasion), itemIds, title: 'Senin dokunuşun', reason: 'Seçtiğin parçalarla düzenlendi.' };
 }
 export function markWorn(data: AppData, outfit: Outfit, stamp = new Date().toISOString().slice(0, 10)): AppData {
   return { ...data, items: data.items.map(item => outfit.itemIds.includes(item.id) && item.lastWorn !== stamp ? { ...item, lastWorn: stamp, wearCount: (item.wearCount ?? 0) + 1 } : item) };

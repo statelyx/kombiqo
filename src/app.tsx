@@ -1,3 +1,5 @@
+import type { DayPlan } from './day-planner';
+import { DayPage } from './day-page';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -24,9 +26,9 @@ import { WardrobeHub } from './wardrobe-hub';
 import { OutfitWorkshop } from './outfit-workshop';
 import { SmartAdd } from './smart-add';
 
-type Tab = 'wardrobe' | 'ideas' | 'saved' | 'profile';
+type Tab = 'wardrobe' | 'ideas' | 'saved' | 'profile' | 'day';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
-const NAV: { id: Tab; label: string; icon: IconName }[] = [{ id: 'wardrobe', label: 'Gardırobum', icon: 'grid-outline' }, { id: 'ideas', label: 'Kombinler', icon: 'sparkles-outline' }, { id: 'saved', label: 'Kaydettiklerim', icon: 'bookmark-outline' }, { id: 'profile', label: 'Tarzım', icon: 'options-outline' }];
+const NAV: { id: Tab; label: string; icon: IconName }[] = [{ id: 'wardrobe', label: 'Gardırobum', icon: 'grid-outline' }, { id: 'ideas', label: 'Kombinler', icon: 'sparkles-outline' }, { id: 'day', label: 'Günüm', icon: 'calendar-outline' }, { id: 'saved', label: 'Kayıtlar', icon: 'bookmark-outline' }, { id: 'profile', label: 'Tarzım', icon: 'options-outline' }];
 function Icon({ name, size = 22, color = C.ink }: { name: IconName; size?: number; color?: string }) { return <Ionicons name={name} size={size} color={color} />; }
 function Button({ label, onPress, secondary = false, icon, disabled = false }: { label: string; onPress: () => void; secondary?: boolean; icon?: IconName; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, secondary && s.secondary, { opacity: disabled ? 0.45 : pressed ? 0.75 : 1 }]}>{icon && <Icon name={icon} color={secondary ? C.ink : C.white} size={18} />}<Text style={[s.buttonText, secondary && { color: C.ink }]}>{label}</Text></Pressable>;
@@ -57,6 +59,7 @@ function Main() {
   const [confirm, setConfirm] = useState<{ title: string; body: string; action: () => void } | null>(null);
   const [editProfile, setEditProfile] = useState(false);
   const [undo, setUndo] = useState<Pick<AppData, 'saved' | 'rejected' | 'feedback'> | null>(null);
+  const [workshopPlan, setWorkshopPlan] = useState<DayPlan>();
   const [workshop, setWorkshop] = useState<Outfit | null>(null);
   const [pinned, setPinned] = useState<string>();
   const [offset, setOffset] = useState(0);
@@ -155,6 +158,7 @@ function Main() {
         <Text style={s.eyebrow}>TEKRAR GİYMEYE DEĞER.</Text><Text style={s.title}>İyi fikirlerin burada.</Text><Text style={s.body}>{data.saved.length} kayıtlı kombin · Bir sonraki güne hazır.</Text>
         {!data.saved.length ? <Empty title="İlk favorin seni bekliyor" body="Beğendiğin kombindeki yer imi simgesine dokun. Sonra burada kolayca bul." action="Kombinleri keşfet" onPress={() => changeTab('ideas')} icon="bookmark-outline" /> : data.saved.map((outfit, index) => <OutfitCard key={outfit.id} outfit={outfit} items={data.items} index={index} saved onOpen={() => setWorkshop(outfit)} onSave={() => saveOutfit(outfit)} />)}
       </>}
+      {tab === 'day' && <DayPage data={data} onChange={setData} onOpen={(outfit, plan) => { setWorkshopPlan(plan); setWorkshop(outfit); }} />}
       {tab === 'profile' && <>
         <WardrobeHub data={data} onChange={setData} onSelect={item => { setPinned(item.id); changeTab('ideas'); }} />
         <Text style={s.eyebrow}>BİR KALIBA SIĞMAK ZORUNDA DEĞİLSİN.</Text><Text style={s.title}>Tarzın, senin kuralların.</Text><Text style={s.body}>Bugün sade, yarın biraz daha cesur. Birden fazla tarz seçebilirsin.</Text>
@@ -172,8 +176,8 @@ function Main() {
     <View style={s.nav}>{NAV.map(entry => <Pressable key={entry.id} onPress={() => changeTab(entry.id)} accessibilityRole="tab" accessibilityState={{ selected: tab === entry.id }} style={s.navItem}><View style={[s.navIcon, tab === entry.id && s.navIconActive]}><Icon name={entry.icon} color={tab === entry.id ? C.coral : C.muted} size={22} /></View><Text style={[s.navText, tab === entry.id && { color: C.coral }]}>{entry.label}</Text></Pressable>)}</View>
   </View>
   {(!data.profile || editProfile) && <ProfileEditor profile={data.profile} preferences={data.preferences} onSave={(profile, styles) => { setData(previous => ({ ...previous, profile, preferences: { ...previous.preferences, styles } })); setEditProfile(false); }} />}
-  {workshop && <OutfitWorkshop outfit={workshop} data={data} onClose={() => setWorkshop(null)} onSave={outfit => { setData(previous => ({ ...previous, saved: [outfit, ...previous.saved.filter(entry => entry.id !== outfit.id)], rejected: previous.rejected.filter(id => id !== outfit.id) })); setNotice('Kombin kaydedildi.'); setWorkshop(null); }} onWear={outfit => { setData(previous => markWorn(previous, outfit)); setNotice('Bugün giydiklerin kaydedildi.'); }} />}
-  {editor && <GarmentEditor item={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} onSave={item => { setData(previous => ({ ...previous, onboarded: true, items: previous.items.some(entry => entry.id === item.id) ? previous.items.map(entry => entry.id === item.id ? item : entry) : [...previous.items, item], saved: previous.saved.filter(outfit => !outfit.itemIds.includes(item.id)), trips: previous.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(item.id)) })), rejected: [] })); setEditor(null); setNotice('Parçan gardıroba eklendi.'); }} onDelete={editor === 'new' ? undefined : () => { const item = editor; setEditor(null); setConfirm({ title: 'Bu parça kaldırılsın mı?', body: 'Bu parçayı içeren kayıtlı kombinler de kaldırılacak.', action: () => setData(previous => removeItem(previous, item.id)) }); }} />}
+  {workshop && <OutfitWorkshop outfit={workshop} data={data} onClose={() => { setWorkshop(null); setWorkshopPlan(undefined); }} onSave={outfit => { setData(previous => ({ ...previous, saved: [outfit, ...previous.saved.filter(entry => entry.id !== outfit.id)], plans: workshopPlan ? [...(previous.plans ?? []).filter(p => p.id !== workshopPlan.id), { ...workshopPlan, title: workshopPlan.title.trim() || 'Günün planı', outfit }].slice(-100) : previous.plans, rejected: previous.rejected.filter(id => id !== outfit.id) })); setNotice(workshopPlan ? 'Kombin gün planına ve kayıtlara eklendi.' : 'Kombin kaydedildi.'); setWorkshop(null); setWorkshopPlan(undefined); }} onWear={outfit => { setData(previous => markWorn(previous, outfit)); setNotice('Bugün giydiklerin kaydedildi.'); }} />}
+  {editor && <GarmentEditor item={editor === 'new' ? undefined : editor} onClose={() => setEditor(null)} onSave={item => { setData(previous => ({ ...previous, onboarded: true, items: previous.items.some(entry => entry.id === item.id) ? previous.items.map(entry => entry.id === item.id ? item : entry) : [...previous.items, item], saved: previous.saved.filter(outfit => !outfit.itemIds.includes(item.id)), plans: previous.plans?.map(plan => plan.outfit?.itemIds.includes(item.id) ? { ...plan, outfit: undefined } : plan), trips: previous.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(item.id)) })), rejected: [] })); setEditor(null); setNotice('Parçan gardıroba eklendi.'); }} onDelete={editor === 'new' ? undefined : () => { const item = editor; setEditor(null); setConfirm({ title: 'Bu parça kaldırılsın mı?', body: 'Bu parçayı içeren kayıtlı kombinler de kaldırılacak.', action: () => setData(previous => removeItem(previous, item.id)) }); }} />}
   <Modal visible={!!confirm} transparent animationType="fade" onRequestClose={() => setConfirm(null)}><View style={s.backdrop}><View style={s.confirm}><Text style={s.sectionTitle}>{confirm?.title}</Text><Text style={s.body}>{confirm?.body}</Text><Button label="Kaldır" onPress={() => { confirm?.action(); setConfirm(null); }} /><Button secondary label="Vazgeç" onPress={() => setConfirm(null)} /></View></View></Modal>
   </SafeAreaView>;
 }
@@ -195,6 +199,9 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
   const [collection, setCollection] = useState(item?.collection ?? 'Unisex');
   const [coverage, setCoverage] = useState(item?.coverage ?? 'Belirtilmedi');
   const [backdrop, setBackdrop] = useState(item?.backdrop ?? 'Krem');
+  const [warmth, setWarmth] = useState<Garment['warmth']>(item?.warmth);
+  const [seasons, setSeasons] = useState(item?.seasons ?? []);
+  const [rainReady, setRainReady] = useState(item?.rainReady);
   const [laundry, setLaundry] = useState(item?.laundry ?? false);
   const [brush, setBrush] = useState(item?.brush ?? []);
   const [brushOpen, setBrushOpen] = useState(false);
@@ -259,7 +266,7 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
     } catch (error) { setError(error instanceof Error ? error.message : 'Temizleme tamamlanamadı. Orijinal fotoğrafın korundu.'); }
     finally { setBusy(false); }
   }
-  const preview: Garment = { id: 'preview', brand: brand || undefined, name: name || 'Yeni parça', category, color: color.hex, colorName: color.name, fit, styles, occasions, image: photo, cutout: isCutout, subtype: SUBTYPES[category].includes(subtype) ? subtype : undefined, collection, coverage, backdrop, brush, secondImage, secondOriginal, secondCutout, preferredAngle, laundry, lastWorn: item?.lastWorn, wearCount: item?.wearCount };
+  const preview: Garment = { id: 'preview', brand: brand || undefined, name: name || 'Yeni parça', category, color: color.hex, colorName: color.name, fit, styles, occasions, image: photo, cutout: isCutout, subtype: SUBTYPES[category].includes(subtype) ? subtype : undefined, collection, coverage, backdrop, brush, secondImage, secondOriginal, secondCutout, preferredAngle, laundry, warmth, seasons, rainReady, lastWorn: item?.lastWorn, wearCount: item?.wearCount };
   function submit() {
     if (!name.trim()) { setError('Parçana bir isim ver.'); return; }
     if (!styles.length || !occasions.length) { setError('En az bir tarz ve kullanım alanı seç.'); return; }
@@ -298,6 +305,9 @@ function GarmentEditor({ item, onClose, onSave, onDelete }: { item?: Garment; on
     <SelectList label="Ürün türü" options={SUBTYPES[category]} values={SUBTYPES[category].includes(subtype) ? [subtype] : []} onChange={v => setSubtype(v[0])} />
     <SelectList label="Koleksiyon" options={['Kadın', 'Erkek', 'Unisex']} values={[collection]} onChange={v => setCollection(v[0])} />
     <SelectList label="Örtücülük" options={['Belirtilmedi', 'Örtücü', 'Açık']} values={[coverage]} onChange={v => setCoverage(v[0])} />
+    <SelectList label="Sıcak tutma" options={["Bilinmiyor", "Hafif", "Orta", "Sıcak"]} values={[warmth ?? "Bilinmiyor"]} onChange={v => setWarmth(v[0] === "Bilinmiyor" ? undefined : v[0] as Garment["warmth"])} />
+    <SelectList label="Mevsimler" options={["İlkbahar", "Yaz", "Sonbahar", "Kış"]} values={seasons} multiple onChange={setSeasons} />
+    <SelectList label="Yağmura uygunluk" options={["Bilinmiyor", "Uygun", "Uygun değil"]} values={[rainReady === undefined ? "Bilinmiyor" : rainReady ? "Uygun" : "Uygun değil"]} onChange={v => setRainReady(v[0] === "Bilinmiyor" ? undefined : v[0] === "Uygun")} />
     <View style={s.row}><Text style={s.body}>Çamaşırda · önerilerde kullanma</Text><Switch accessibilityLabel="Çamaşırda" value={laundry} onValueChange={setLaundry} /></View>
     {category === 'Ayakkabılar' && <View style={s.panel}><Text style={s.sectionTitle}>İki açı, tek ayakkabı</Text><Text style={s.body}>Ana fotoğrafı dış yandan, ikinciyi önden çapraz ve hafif yukarıdan çek. Ayakkabının tamamı görünsün. İkinci fotoğraf isteğe bağlı.</Text><Button secondary label={secondImage ? 'İkinci açıyı değiştir' : 'İkinci açı ekle'} disabled={busy} onPress={() => pickPhoto(false, true)} />{secondImage && <><View style={s.wrap}><Chip label="Yan açı" selected={preferredAngle === 'main'} onPress={() => setPreferredAngle('main')} /><Chip label="Çapraz açı" selected={preferredAngle === 'second'} onPress={() => setPreferredAngle('second')} /></View>{cutoutAvailable && <Button secondary label="İkinci açının arka planını temizle" disabled={busy} onPress={async () => { setBusy(true); try { setSecondImage(await removeBackground(secondOriginal ?? secondImage)); setSecondCutout(true); setPreferredAngle('second'); } catch { setError('İkinci açı temizlenemedi; orijinal korundu.'); } finally { setBusy(false); } }} />}{secondCutout && <Button secondary label="İkinci açının orijinaline dön" onPress={() => { setSecondImage(secondOriginal); setSecondCutout(false); }} />}<Button secondary label="İkinci açıyı kaldır" onPress={() => { setSecondImage(undefined); setSecondOriginal(undefined); setSecondCutout(false); setPreferredAngle('main'); }} /></>}</View>}
     <Text style={s.fieldLabel}>ANA RENK · {color.name.toLocaleUpperCase('tr')}</Text><View style={s.wrap}>{COLORS.map(value => <Pressable key={value.name} accessibilityRole="button" accessibilityLabel={value.name} accessibilityState={{ selected: color.name === value.name }} onPress={() => setColor(value)} style={[s.colorButton, { backgroundColor: value.hex }, color.name === value.name && { borderColor: C.coral, borderWidth: 3 }]}>{color.name === value.name && <Icon name="checkmark" size={18} color={value.name === 'Siyah' || value.name === 'Bordo' || value.name === 'Lacivert' ? C.white : C.ink} />}</Pressable>)}</View>

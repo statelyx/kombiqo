@@ -15,3 +15,7 @@ Herkese açık mağaza yayını öncesinde geliştirici iletişim bilgisi ve yay
 ## İsteğe bağlı akıllı ekleme
 
 Cihazdaki Vision ve renk analizi fotoğrafı dışarı göndermez. Sonuçlar kısa süreli bellekte tutulur; kullanıcı kabul etmeden gardırop değiştirilmez. Cloudflare Workers AI çevrimiçi servisi yapılandırılmıştır; gönderim anahtarı varsayılan olarak kapalıdır. Kullanıcı her düzenleme oturumunda açıkça izin verirse yalnızca seçilen küçültülmüş fotoğraf, ekranda belirtilen analiz sağlayıcılarına aracı sunucu üzerinden gönderilir; profil ve gardırop gönderilmez. Aracı sunucu fotoğraf dosyası/gövde logu tutmaz; sonuç önbelleği en fazla bir saattir. Kota kontrolü için güne göre özetlenmiş IP sayacı Cloudflare Durable Object içinde tutulur; ertesi gün yenilenir. Harici sağlayıcının veri işlemesi kendi koşullarına tabidir. Uygulama düzeyinde onay geri alınması sonraki işlemleri durdurur; daha önce gönderilen verilerin sağlayıcıdaki saklanmasını geri almaz.
+
+
+## Gün planı, hava ve paylaşım
+Gün planları ve seçilerek aktarılan telefon takvimi bilgileri cihazda saklanır; buluta gönderilmez. Takvim izni yalnızca kullanıcı ilgili özelliği açarsa istenir. Hava tahmini istendiğinde seçilen şehir merkezi Cloudflare üzerinden MET Norway servisine iletilir. Kesin cihaz konumu alınmaz. Hava yanıtları önbelleğe alınır. İlham fotoğrafı cihazda analiz edilir ve bu akışta harici analiz servisine gönderilmez. Kombin PNG dosyası yalnızca kullanıcı paylaşım işlemini seçtiğinde sistem paylaşım ekranına verilir.

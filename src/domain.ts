@@ -1,3 +1,4 @@
+import type { DayPlan } from './day-planner';
 export const CATEGORIES = ['Üstler', 'Altlar', 'Dış giyim', 'Ayakkabılar', 'Elbiseler', 'Çantalar', 'Aksesuarlar'] as const;
 export const STYLES = ['Minimal', 'Sokak stili', 'Klasik', 'Sportif', 'Romantik'] as const;
 export const OCCASIONS = ['Günlük', 'İş', 'Dışarıda', 'Davet', 'Spor'] as const;
@@ -6,12 +7,12 @@ export type Style = typeof STYLES[number];
 export type Occasion = typeof OCCASIONS[number];
 export type Fit = 'Dar' | 'Düz' | 'Bol';
 export type BrushStroke = { points: string; width: number; restore: boolean };
-export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean; brand?: string; subtype?: string; collection?: string; coverage?: string; secondImage?: string; secondOriginal?: string; secondCutout?: boolean; preferredAngle?: 'main' | 'second'; backdrop?: string; brush?: BrushStroke[]; laundry?: boolean; lastWorn?: string; wearCount?: number };
-export type Outfit = { id: string; itemIds: string[]; occasion: Occasion; title: string; reason: string };
+export type Garment = { id: string; name: string; category: Category; color: string; colorName: string; fit: Fit; styles: Style[]; occasions: Occasion[]; image?: string; originalImage?: string; cutout?: boolean; demo?: boolean; brand?: string; subtype?: string; collection?: string; coverage?: string; secondImage?: string; secondOriginal?: string; secondCutout?: boolean; preferredAngle?: 'main' | 'second'; backdrop?: string; brush?: BrushStroke[]; laundry?: boolean; lastWorn?: string; wearCount?: number; warmth?: 'Hafif' | 'Orta' | 'Sıcak'; seasons?: string[]; rainReady?: boolean };
+export type Outfit = { id: string; itemIds: string[]; occasion: Occasion; title: string; reason: string; layout?: Record<string, { x: number; y: number; scale: number; angle: number }> };
 export type Preferences = { styles: Style[]; exploration: boolean; fits: Fit[] };
 export type Profile = { name: string; age?: number; gender: string; brands: string[]; collections?: string[]; coverage?: string; occasions?: Occasion[] };
 export type Feedback = { id: string; styles: Style[]; liked: boolean; reason?: string };
-export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[]; trips?: { id: string; name: string; outfits: Outfit[] }[] };
+export type AppData = { version: 1; items: Garment[]; preferences: Preferences; saved: Outfit[]; rejected: string[]; onboarded: boolean; profile?: Profile; feedback?: Feedback[]; trips?: { id: string; name: string; outfits: Outfit[]; packed?: string[] }[]; plans?: DayPlan[] };
 export const COLORS = [{ name: 'Ekru', hex: '#E7DFD0' }, { name: 'Lacivert', hex: '#19243B' }, { name: 'Gri', hex: '#858585' }, { name: 'Siyah', hex: '#343432' }, { name: 'Mavi', hex: '#819BAD' }, { name: 'Kahve', hex: '#826652' }, { name: 'Yeşil', hex: '#7B8469' }, { name: 'Beyaz', hex: '#F4F2ED' }, { name: 'Pembe', hex: '#CEA5A1' }, { name: 'Bordo', hex: '#824B52' }];
 export const DEFAULT_PREFERENCES: Preferences = { styles: ['Minimal', 'Sokak stili'], fits: ['Düz', 'Bol'], exploration: true };
 export const DEMO_ITEMS: Garment[] = [
@@ -29,7 +30,7 @@ export const emptyData = (): AppData => ({ version: 1, items: [], preferences: {
 export const outfitId = (ids: string[], occasion: Occasion) => `${occasion}:${[...ids].sort().join('|')}`;
 
 // Local preference scoring; no external model or live trend claims.
-export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = [], options: { pinned?: string; profile?: Profile } = {}): Outfit[] {
+export function recommend(items: Garment[], preferences: Preferences, occasion: Occasion, saved: Outfit[], rejected: string[], feedback: Feedback[] = [], brands: string[] = [], options: { pinned?: string; profile?: Profile; itemBonus?: (item: Garment) => number } = {}): Outfit[] {
   const learned = styleAffinity(feedback);
   const preferredStyles = new Set(preferences.styles);
   const preferredFits = new Set(preferences.fits);
@@ -49,7 +50,7 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
     const clothing = item.category === 'Ayakkabılar' || preferredFits.has(item.fit) ? 2 : 0;
     const familiarBrand = item.brand && preferredBrands.has(item.brand) ? 2 : 0;
     const learnedWeight = item.styles.reduce((sum, style) => sum + (learned[style] ?? 0), 0);
-    itemScores.set(item, styleHits + clothing + Math.min(liked.get(item.id) ?? 0, 3) + learnedWeight + familiarBrand);
+    itemScores.set(item, styleHits + clothing + Math.min(liked.get(item.id) ?? 0, 3) + learnedWeight + familiarBrand + (options.itemBonus?.(item) ?? 0));
   }
   const category = (name: Category) => byCategory.get(name) ?? [];
   const shoes = category('Ayakkabılar');
@@ -88,7 +89,7 @@ export function recommend(items: Garment[], preferences: Preferences, occasion: 
   return selected;
 }
 export function removeItem(data: AppData, id: string): AppData {
-  return { ...data, items: data.items.filter(item => item.id !== id), saved: data.saved.filter(outfit => !outfit.itemIds.includes(id)), rejected: [], trips: data.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(id)) })) };
+  return { ...data, items: data.items.filter(item => item.id !== id), saved: data.saved.filter(outfit => !outfit.itemIds.includes(id)), rejected: [], plans: data.plans?.map(plan => plan.outfit?.itemIds.includes(id) ? { ...plan, outfit: undefined } : plan), trips: data.trips?.map(trip => ({ ...trip, outfits: trip.outfits.filter(outfit => !outfit.itemIds.includes(id)) })) };
 }
 
 export function styleAffinity(feedback: Feedback[] = []): Partial<Record<Style, number>> {
@@ -128,15 +129,21 @@ const isGarment = (item: any) =>
   Array.isArray(item.styles) && Array.isArray(item.occasions) &&
   (item.brush === undefined || (Array.isArray(item.brush) && item.brush.length <= 100 && item.brush.every((stroke: any) => typeof stroke.points === 'string' && stroke.points.length <= 18000 && /^[ML0-9. ,]+$/.test(stroke.points) && Number.isFinite(stroke.width) && stroke.width > 0 && stroke.width <= 100 && typeof stroke.restore === 'boolean'))) &&
   (item.secondImage === undefined || typeof item.secondImage === 'string') &&
+  (item.warmth === undefined || ['Hafif', 'Orta', 'Sıcak'].includes(item.warmth)) &&
+  (item.seasons === undefined || (Array.isArray(item.seasons) && item.seasons.every((s: any) => ['İlkbahar', 'Yaz', 'Sonbahar', 'Kış'].includes(s)))) &&
+  (item.rainReady === undefined || typeof item.rainReady === 'boolean') &&
   (item.laundry === undefined || typeof item.laundry === 'boolean') &&
   (item.lastWorn === undefined || (typeof item.lastWorn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.lastWorn))) &&
   (item.wearCount === undefined || (Number.isInteger(item.wearCount) && item.wearCount >= 0));
+const isOutfit = (outfit: any) => !!outfit && typeof outfit.id === 'string' && Array.isArray(outfit.itemIds) && outfit.itemIds.every((id: any) => typeof id === 'string') &&
+  (outfit.layout === undefined || (outfit.layout && typeof outfit.layout === 'object' && !Array.isArray(outfit.layout) && Object.values(outfit.layout).every((pose: any) => pose && ['x','y','scale','angle'].every(key => Number.isFinite(pose[key])))));
 const isStoredData = (data: any, version: number) =>
   !!data && data.version === version && Array.isArray(data.items) && data.items.every(isGarment) &&
   Array.isArray(data.preferences?.styles) && Array.isArray(data.preferences?.fits) &&
-  Array.isArray(data.saved) && data.saved.every((outfit: any) => !!outfit && typeof outfit.id === 'string' && Array.isArray(outfit.itemIds)) &&
+  Array.isArray(data.saved) && data.saved.every(isOutfit) &&
   Array.isArray(data.rejected) &&
-  (data.trips === undefined || (Array.isArray(data.trips) && data.trips.every((trip: any) => typeof trip.id === 'string' && typeof trip.name === 'string' && Array.isArray(trip.outfits) && trip.outfits.every((outfit: any) => Array.isArray(outfit.itemIds) && outfit.itemIds.every((id: any) => typeof id === 'string'))))) &&
+  (data.trips === undefined || (Array.isArray(data.trips) && data.trips.every((trip: any) => typeof trip.id === 'string' && typeof trip.name === 'string' && (trip.packed === undefined || (Array.isArray(trip.packed) && trip.packed.every((id: any) => typeof id === 'string'))) && Array.isArray(trip.outfits) && trip.outfits.every((outfit: any) => Array.isArray(outfit.itemIds) && outfit.itemIds.every((id: any) => typeof id === 'string'))))) &&
+  (data.plans === undefined || (Array.isArray(data.plans) && data.plans.every((p: any) => p && ['id','title','date','time','endTime','city','venue'].every(k => typeof p[k] === 'string') && OCCASIONS.includes(p.occasion) && typeof p.outdoors === 'boolean' && (!p.outfit || isOutfit(p.outfit)) && (!p.weather || (Number.isFinite(p.weather.temperature) && Number.isFinite(p.weather.wind) && typeof p.weather.rain === 'boolean' && ['manual','forecast'].includes(p.weather.source)))))) &&
   (data.profile?.collections === undefined || (Array.isArray(data.profile.collections) && data.profile.collections.every((value: any) => typeof value === 'string')));
 
 export type StoredRead = { data: AppData; notice?: string; preserved?: string };

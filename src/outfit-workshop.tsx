@@ -1,3 +1,4 @@
+import { FreeBoard } from './free-board';
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +18,7 @@ export function OutfitWorkshop({ outfit, data, onClose, onSave, onWear }: { outf
   return <Modal visible animationType="slide" onRequestClose={onClose}><SafeAreaView style={f.page}><ScrollView contentContainerStyle={f.content}>
     <Text style={f.title}>Kombin atölyesi</Text><Action label="Kapat" onPress={onClose} />
     <Text style={f.muted}>Kendi parçalarını bir arada incele; tek bir parçayı değiştirirken kombinin geri kalanı aynı kalsın.</Text>
-    <OutfitComposition parts={parts} onSelect={item => setSelected(item.id)} />
+    <FreeBoard parts={parts} outfit={draft} onChange={setDraft} onSelect={setSelected} />
     {selected && parts.some(item => item.id === selected) && <View style={f.panel}><Text style={f.text}>Bu parça için alternatifler</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{availableItems.filter(item => item.category === parts.find(part => part.id === selected)?.category).map(item => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${item.name} ile değiştir`} onPress={() => { setDraft(previous => replacePiece(previous, selected, item, data.items, data.profile)); setSelected(item.id); }} style={{ width: 110, alignItems: 'center' }}><GarmentArt item={item} size={100} /><Text style={f.muted}>{item.name}</Text></Pressable>)}</ScrollView></View>}
     {notice ? <Text accessibilityLiveRegion="polite" style={f.text}>{notice}</Text> : null}
     <Text style={f.title}>Tek parçayı değiştir</Text>

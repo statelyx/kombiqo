@@ -1,3 +1,4 @@
+import { weatherResponse } from './weather.mjs';
 import { DurableObject } from 'cloudflare:workers';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
@@ -9,7 +10,7 @@ const prompt = `Classify the main clothing product, not the person or background
 
 export class AnalysisBudget extends DurableObject {
   constructor(ctx, env) {
-    super(ctx, env); this.env = env; this.storage = ctx.storage; this.busy = 0;
+    super(ctx, env); this.env = env; this.storage = ctx.storage; this.busy = 0; this.weatherJobs = new Map();
     const cloudflare = { id: 'cloudflare', run: async (image, signal) => {
       const job = env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', { image: Array.from(Buffer.from(image.split(',')[1], 'base64')), prompt, max_tokens: 220, temperature: 0 });
       let abort;
@@ -44,6 +45,11 @@ export class AnalysisBudget extends DurableObject {
     });
   }
   async fetch(request) {
+    if (new URL(request.url).pathname === '/weather') {
+      const key = new URL(request.url).searchParams.get('city');
+      if (!this.weatherJobs.has(key)) this.weatherJobs.set(key, weatherResponse(request, this.storage).finally(() => this.weatherJobs.delete(key)));
+      return (await this.weatherJobs.get(key)).clone();
+    }
     if (this.busy >= 2) return local();
     this.busy++;
     try {
@@ -70,7 +76,14 @@ export default {
     const origin = request.headers.get('Origin');
     const allowedOrigin = origin === env.WEB_ORIGIN;
     if (origin && !allowedOrigin) return new Response('Forbidden', { status: 403 });
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': env.WEB_ORIGIN ?? '', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' } });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': env.WEB_ORIGIN ?? '', 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type' } });
+    if (url.pathname === '/weather' && request.method === 'GET') {
+      const stub = env.BUDGET.get(env.BUDGET.idFromName('kombiqo-global'));
+      const upstream = await stub.fetch(new Request('https://internal/weather' + url.search));
+      const response = new Response(upstream.body, upstream);
+      if (allowedOrigin) { response.headers.set('Access-Control-Allow-Origin', origin); response.headers.set('Vary', 'Origin'); }
+      return response;
+    }
     if (url.pathname !== '/analyze' || request.method !== 'POST') return new Response('Not found', { status: 404 });
     if (!request.headers.get('Content-Type')?.startsWith('application/json')) return new Response('Unsupported format', { status: 415 });
     if (Number(request.headers.get('Content-Length')) > 1500000) return new Response('Too large', { status: 413 });
